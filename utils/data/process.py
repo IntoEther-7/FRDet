@@ -79,6 +79,7 @@ def read_single_coco(q, qa, label_ori,
     return q, qa
 
 
+
 def cat_list(list_c_image: list, list_c_ann: list, random_sort):
     r"""
     把[class1[images1, images2, ...],class2[images1, ...]]
@@ -141,11 +142,10 @@ def transform_support(support_and_ann, transforms, is_cuda):
     for imgPath, box in support_and_ann:
         img = crop_support(imgPath, box)
         img = t(img)
+        if is_cuda:
+            img = img.cuda()
         support_tensors.append(img)
-    support_tensor = torch.stack(support_tensors, dim=0)
-    if is_cuda:
-        support_tensor = support_tensor.cuda()
-    return support_tensor
+    return support_tensors
 
 
 def get_bg(support_and_ann, support_transforms, is_cuda):

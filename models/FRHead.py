@@ -1,110 +1,85 @@
-# PROJECT: FRNOD
+# PROJECT: FRDet
 # PRODUCT: PyCharm
 # AUTHOR: 17795
-# TIME: 2022-10-22 18:06
+# TIME: 2022-11-16 14:25
 import torch
 from torch import nn
-from torch.nn import functional as F
-from torchvision.transforms import transforms
+import torch.nn.functional as F
+from torchvision.models.detection.faster_rcnn import TwoMLPHead, FastRCNNPredictor
 
 
-class FRPredictor(nn.Module):
-    """
-    Standard classification + bounding box regression layers
-    for Fast R-CNN.
+class FRBoxHead(TwoMLPHead):
+    def __init__(self, in_channels, representation_size):
+        super(FRBoxHead, self).__init__(in_channels, representation_size)
 
-    Args:
-        f_channels (int): number of input channels
-        num_classes (int): number of output classes (including background)
-    """
+    def forward(self, x):
+        x = x.flatten(start_dim=1)
 
-    def __init__(self, f_channels, q_channels, num_classes,
-                 support, catIds, Woodubry,
-                 resolution, channels, scale):
-        r"""
+        x = F.relu(self.fc6(x))
+        x = F.relu(self.fc7(x))
 
-        :param f_channels:
-        :param num_classes:
-        :param support: support(way, s, s)
-        :param Woodubry:
-        """
+        return x
 
-        super(FRPredictor, self).__init__()
-        self.cls_conv = nn.Sequential(nn.Conv2d(q_channels, q_channels, kernel_size=1),
-                                      nn.BatchNorm2d(q_channels))
-        self.bbox_pred = nn.Linear(f_channels, num_classes * 4)
-        self.support = support  # 包含背景
+
+class FRPredictHead(nn.Module):
+    def __init__(self, way, shot, representation_size, num_classes, Woodubry):
+        super(FRPredictHead, self).__init__()
+        self.resolution = None
+        self.way = way
+        self.shot = shot
+        self.representation_size = representation_size
+        self.num_classes = num_classes
         self.Woodubry = Woodubry
-        self.catIds = catIds
-        self.resolution = resolution
-        self.channels = channels
-        self.scale = nn.Parameter(torch.FloatTensor([1.0]), requires_grad=True)
-        self.way = num_classes - 1
-        # α, β
+        self.bbox_pred = nn.Linear(representation_size, num_classes * 4)
         self.r = nn.Parameter(torch.zeros(2), requires_grad=True)
+        self.scale = nn.Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
-    def forward(self, query_features_and_x):
-        r"""
-
-        :param query_features_and_x: query_features(roi数, channel, s, s), x(roi数, representation_size)
-        :param Woodubry:
-        :return: scores(roi数, num_classes), bbox_deltas(roi数, num_classes * 4)
-        """
-        # x: (roi数, representation_size)
-        # query_features: (roi数, channel, s, s)
-        query_features, x = query_features_and_x
+    def forward(self, support, query, x):
+        # 回归
         if x.dim() == 4:
             assert list(x.shape[2:]) == [1, 1]
         x = x.flatten(start_dim=1)
-        support = self.support  # (way + 1, channel, s, s)
-        support = support.view(self.way + 1, self.channels, self.resolution)  # (way + 1, channel, resolution)
-        support = support.permute(0, 2, 1)  # (way + 1, resolution, channel)
-
-        # ------------------特征整合, 视情况将其取消注释
-        # support = self.cls_conv(support)  # (way + 1, channel, s, s)
-        # query_features = self.cls_conv(query_features)
-
-        # query_features: (roi数, channel, s, s)
-        scores = self.cls_predictor(
-            support=support,
-            boxes_features=query_features,
-            Woodubry=self.Woodubry)
         bbox_deltas = self.bbox_pred(x)
 
-        return scores, bbox_deltas
+        # 分类
+        scores, support = self.cls_predictor(
+            support=support,
+            boxes_features=query,
+            Woodubry=self.Woodubry)
+
+        return scores, bbox_deltas, support
 
     def cls_predictor(self, support: torch.Tensor, boxes_features: torch.Tensor, Woodubry=True):
         r"""
 
-        :param support: s(way, resolution, channel)
-        :param catIds: [catId, ...]对应support的way通道
-        :param boxes_features: query_features: (roi数, channel, s, s)
+        :param support: (way * shot, representation_size)
+        :param boxes_features: (roi_num, representation_size)
         :param Woodubry:
         :return:
         """
-        # resize特征
-        # (roi数, channel, s, s) -> (roi数, s, s, channel) -> (roi数 * 分辨率, channel)
-        n = boxes_features.shape[0]
-        # boxes_features = boxes_features. \
-        #     permute(0, 2, 3, 1). \
-        #     contiguous(). \
-        #     view(n * self.resolution, self.channels)  # (shot * resolution, channel)
-        boxes_features = boxes_features.permute(0, 2, 3, 1)
+        roi_num = boxes_features.shape[0]  # roi_num
+        _, c, h, w = support.shape
+        self.resolution = h * w
+        support = support.reshape(self.way, self.shot, c, self.resolution)  # (way, shot, c, resolution)
+        support = support.permute(0, 1, 3, 2)  # (way, shot, resolution, c)
+        support = support.reshape(self.way, self.shot * self.resolution, c)  # (way, shot * resolution, c)
+        boxes_features = boxes_features.permute(0, 2, 3, 1)  # (roi_num, h, w, c)
+        boxes_features = boxes_features.reshape(roi_num * self.resolution, c)  # (shot * resolution, channel)
         boxes_features = boxes_features.contiguous()
-        boxes_features = boxes_features.view(n * self.resolution, self.channels)  # (shot * resolution, channel)
-        Q_bar = self.reconstruct_feature_map(support, boxes_features, Woodubry)
+        Q_bar = self.reconstruct_feature_map(support, boxes_features,
+                                             Woodubry)  # (way, shot * resolution, c), (shot * resolution, channel)
         euclidean_matrix = self.euclidean_metric(boxes_features, Q_bar)  # [roi数 * resolution, way + 1]
         metric_matrix = self.metric(euclidean_matrix,
-                                    box_per_image=n,
-                                    resolution=self.resolution)  # (roi数, way + 1)
+                                    box_per_image=roi_num,
+                                    resolution=self.resolution)  # (roi数, way)
         logits = metric_matrix * self.scale.exp()  # (roi数, way + 1), 防止logits的数值过小导致softmax评分差距不大
-        return logits
+        return logits, support
 
     def reconstruct_feature_map(self, support: torch.Tensor, query: torch.Tensor, Woodubry=True):
         r"""
         通过支持特征图对查询特征图进行重构
-        :param support: support(way, resolution, d)
-        :param query: 查询特征
+        :param support: (way, shot * resolution, c)
+        :param query: (shot * resolution, channel)
         :param alpha: alpha
         :param beta: beta
         :param Woodubry: 是否使用Woodbury等式, 不使用的话就是用优化后的Woodbury等式
@@ -122,7 +97,8 @@ class FRPredictor(nn.Module):
         rho = beta.exp()
 
         # size(way, channel, shot*resolution), support_T为转置
-        support_t: torch.Tensor = support.permute(0, 2, 1)
+        support_t: torch.Tensor = support.T  # (way, shot * resolution, c) -> (c, shot* resolution, way)
+        support_t = support_t.permute(2, 0, 1)  # (c, shot* resolution, way) -> (way, c, shot * resolution)
 
         # 当 d > kr 时，Eq8 中的 Q 公式计算效率很高，
         # 因为最昂贵的步骤是反转不随 d 增长的 kr kr 矩阵。
@@ -177,17 +153,17 @@ class FRPredictor(nn.Module):
         # query.unsqueeze(0):                   [1, roi数 * resolution, channel]
         # Q_bar:                                [way, roi数 * resolution, channel]
 
-        euclidean_matrix = Q_bar - query.unsqueeze(0)  # [way + 1(背景), roi数 * resolution, channel]
-        euclidean_matrix = euclidean_matrix.pow(2)  # [way + 1(背景), roi数 * resolution, channel], 距离不需要负值
-        euclidean_matrix = euclidean_matrix.sum(2)  # [way + 1(背景), roi数 * resolution]
-        euclidean_matrix = euclidean_matrix.permute(1, 0)  # [roi数 * resolution, way + 1(背景)]
+        euclidean_matrix = Q_bar - query.unsqueeze(0)  # [way, roi数 * resolution, channel]
+        euclidean_matrix = euclidean_matrix.pow(2)  # [way, roi数 * resolution, channel], 距离不需要负值
+        euclidean_matrix = euclidean_matrix.sum(2)  # [way, roi数 * resolution]
+        euclidean_matrix = euclidean_matrix.permute(1, 0)  # [roi数 * resolution, way]
         euclidean_matrix = euclidean_matrix / self.resolution
         return euclidean_matrix  # 距离矩阵
 
     def metric(self, euclidean_matrix, box_per_image, resolution):
         r"""
         利用欧几里得度量矩阵, 计算定义距离
-        :param euclidean_matrix: 欧几里得度量矩阵, (way*query_shot*resolution, way)
+        :param euclidean_matrix: 欧几里得度量矩阵, (roi数 * resolution, way)
         :param way: way
         :param query_shot: 广播用
         :param resolution: 分辨率
@@ -203,10 +179,9 @@ class FRPredictor(nn.Module):
         #     view(box_per_image, resolution, self.way) \缩放到-1到1
         #     .mean(1)  # (roi数, way)
         # euclidean_matrix: [roi数 * resolution, way]
-        metric_matrix = euclidean_matrix.neg()  # [roi数 * resolution, way + 1(背景)]
-        metric_matrix = metric_matrix.contiguous()  # [roi数 * resolution, way + 1(背景)]
-        metric_matrix = metric_matrix.view(box_per_image, resolution,
-                                           self.way + 1)  # 包括了背景了, [roi数, resolution, way + 1(背景)]
+        metric_matrix = euclidean_matrix.neg()  # [roi数 * resolution, way]
+        metric_matrix = metric_matrix.reshape(box_per_image, resolution,
+                                              self.way)  # 包括了背景了, [roi数, resolution, way + 1(背景)]
         metric_matrix = metric_matrix.mean(1)  # (roi数, way + 1(背景))
         # metric_matrix += 2 / (self.way + 1)  # [-1,0] -> [0-1]
         # k = 2 / (metric_matrix.max(1).values - metric_matrix.min(1).values)

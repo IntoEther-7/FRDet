@@ -9,7 +9,7 @@ from torch.nn import functional as F
 from torchvision.transforms import transforms
 from torchvision.models.detection.image_list import ImageList
 
-from models.MADNet import MADNet, PixelAttention, ChannelAttention
+from models_dateout.MADNet import MADNet, PixelAttention, ChannelAttention
 
 
 class TestMADNet(MADNet):
