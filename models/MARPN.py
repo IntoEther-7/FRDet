@@ -73,21 +73,21 @@ class MultiplyAttentionRPN(RegionProposalNetwork):
         # 融合注意力
         features_l = []
         losses_attention = 0
-        for index, feature in enumerate(features):
+        for feature in features:
             c, w, h = feature.shape[1:]
             f_list = []
             for index, f in enumerate(feature):
-                # TODO: index, mask是否正确
                 f, loss_a = self.attention.forward(support, torch.unsqueeze(f, dim=0), images, targets, index)
                 f = f.view(self.way, self.shot, c, w, h)
                 f = f.mean(1)
                 f = f.view(self.way * c, w, h)
                 f_list.append(f)
                 losses_attention += loss_a
+            losses_attention = losses_attention / feature.shape[0]
             features_l.append(torch.stack(f_list, dim=0))
         features = features_l
         if self.training:
-            loss_attention = losses_attention.mean()
+            loss_attention = losses_attention
 
         objectness, pred_bbox_deltas = self.head(features)
         anchors = self.anchor_generator(images, features)

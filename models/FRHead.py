@@ -34,7 +34,7 @@ class FRPredictHead(nn.Module):
         self.r = nn.Parameter(torch.zeros(2), requires_grad=True)
         self.scale = nn.Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
-    def forward(self, support, query, x):
+    def forward(self, support, bg, query, x):
         # 回归
         if x.dim() == 4:
             assert list(x.shape[2:]) == [1, 1]
@@ -44,12 +44,13 @@ class FRPredictHead(nn.Module):
         # 分类
         scores, support = self.cls_predictor(
             support=support,
+            bg=bg,
             boxes_features=query,
             Woodubry=self.Woodubry)
 
         return scores, bbox_deltas, support
 
-    def cls_predictor(self, support: torch.Tensor, boxes_features: torch.Tensor, Woodubry=True):
+    def cls_predictor(self, support: torch.Tensor, bg: torch.Tensor, boxes_features: torch.Tensor, Woodubry=True):
         r"""
 
         :param support: (way * shot, representation_size)
@@ -63,16 +64,21 @@ class FRPredictHead(nn.Module):
         support = support.reshape(self.way, self.shot, c, self.resolution)  # (way, shot, c, resolution)
         support = support.permute(0, 1, 3, 2)  # (way, shot, resolution, c)
         support = support.reshape(self.way, self.shot * self.resolution, c)  # (way, shot * resolution, c)
+        bg = bg.reshape(self.way, self.shot, c, self.resolution)  # (way, shot, c, resolution)
+        bg = bg.permute(0, 1, 3, 2)  # (way, shot, resolution, c)
+        bg = bg.mean(0)
+        bg = bg.reshape(1, self.shot * self.resolution, c)  # (way, shot * resolution, c)
+        support_bg = torch.cat([bg, support], dim=0)
         boxes_features = boxes_features.permute(0, 2, 3, 1)  # (roi_num, h, w, c)
         boxes_features = boxes_features.reshape(roi_num * self.resolution, c)  # (shot * resolution, channel)
         boxes_features = boxes_features.contiguous()
-        Q_bar = self.reconstruct_feature_map(support, boxes_features,
-                                             Woodubry)  # (way, shot * resolution, c), (shot * resolution, channel)
+        Q_bar = self.reconstruct_feature_map(support_bg, boxes_features,
+                                             Woodubry)  # (way, roi * resolution, c), (shot * resolution, channel)
         euclidean_matrix = self.euclidean_metric(boxes_features, Q_bar)  # [roi数 * resolution, way + 1]
         metric_matrix = self.metric(euclidean_matrix,
                                     box_per_image=roi_num,
                                     resolution=self.resolution)  # (roi数, way)
-        logits = metric_matrix * self.scale.exp()  # (roi数, way + 1), 防止logits的数值过小导致softmax评分差距不大
+        logits = metric_matrix * self.scale.exp()  # (roi数, way + 1), 防止logits的数值过小导致softmax评分差距不大, 温度T
         return logits, support
 
     def reconstruct_feature_map(self, support: torch.Tensor, query: torch.Tensor, Woodubry=True):
@@ -181,7 +187,7 @@ class FRPredictHead(nn.Module):
         # euclidean_matrix: [roi数 * resolution, way]
         metric_matrix = euclidean_matrix.neg()  # [roi数 * resolution, way]
         metric_matrix = metric_matrix.reshape(box_per_image, resolution,
-                                              self.way)  # 包括了背景了, [roi数, resolution, way + 1(背景)]
+                                              self.way + 1)  # 包括了背景了, [roi数, resolution, way + 1(背景)]
         metric_matrix = metric_matrix.mean(1)  # (roi数, way + 1(背景))
         # metric_matrix += 2 / (self.way + 1)  # [-1,0] -> [0-1]
         # k = 2 / (metric_matrix.max(1).values - metric_matrix.min(1).values)

@@ -8,6 +8,7 @@ import PIL.Image
 import torch
 from PIL import Image
 from torchvision.transforms import transforms
+from torch.nn import functional as F
 
 
 def pre_process(support: list, query: list, query_anns: list, val: list, val_anns: list, label_ori: list,
@@ -79,7 +80,6 @@ def read_single_coco(q, qa, label_ori,
     return q, qa
 
 
-
 def cat_list(list_c_image: list, list_c_ann: list, random_sort):
     r"""
     把[class1[images1, images2, ...],class2[images1, ...]]
@@ -106,46 +106,49 @@ def cat_list(list_c_image: list, list_c_ann: list, random_sort):
     return l_img, l_ann
 
 
-def pre_process_tri(support: dict, query: list, query_anns: list, val, val_anns,
-                    support_n: list = None,
-                    support_transforms=transforms.Compose([transforms.ToTensor(),
-                                                           transforms.Resize((320, 320))]),
-                    query_transforms=transforms.Compose([transforms.ToTensor(),
-                                                         transforms.Resize(600)]), is_cuda=False):
+def transform_support(support, support_anns, t, catIds, is_cuda):
     r"""
-    图像处理, 转换成tensor, s_c, s_n为tensor[shot, channel, 320, 320], q_c为[tensor, tensor, ...],
-    gt_bboxes为[标注列表[每张图像的标注[每个盒子的参数]]],
-    labels为[标注列表[每张图像的标签[每个盒子的标签]]]
-    :param support: 支持图, [PIL.Image]
-    :param query: 查询图,
-    :param query_anns: 标注
-    :param support_transforms:
-    :param query_transforms:
-    :param support_n:
-    :return: 如果有s_n, 则返回s_c, s_n, q_c, gt_bboxes, labels, 否则返回s_c, q_c, gt_bboxes, labels
+    上下padding16裁剪
+    :param support:
+    :param support_anns:
+    :param t:
+    :param catIds:
+    :param is_cuda:
+    :return:
     """
-    s_c = transform_support(support, support_transforms, is_cuda)
-    q_c = transform_query(query, query_transforms, is_cuda)
-    q_anns = transform_anns(query_anns, is_cuda, label_ori=True)
-    val = transform_query(val, query_transforms, is_cuda)
-    val_anns = transform_anns(val_anns, is_cuda, label_ori=True)
-    if support_n:
-        s_n = transform_support(support_n, support_transforms, is_cuda)
-        return s_c, s_n, q_c, q_anns, val, val_anns
-    else:
-        return s_c, q_c, q_anns, val, val_anns
-
-
-def transform_support(support_and_ann, transforms, is_cuda):
     support_tensors = []
-    t = transforms
-    for imgPath, box in support_and_ann:
-        img = crop_support(imgPath, box)
-        img = t(img)
-        if is_cuda:
-            img = img.cuda()
-        support_tensors.append(img)
-    return support_tensors
+    bg_tensors = []
+    bg_transform = transforms.Compose([transforms.ToTensor(),
+                                       transforms.Resize((320, 320))])
+    for s_c, anns_c, catId in zip(support, support_anns, catIds):
+        for s, anns in zip(s_c, anns_c):
+            # 一张图像的处理, 该图路径s, 所有标注anns
+            skip_this_image = False
+            bg = PIL.Image.open(s).convert('RGB')
+            bg = bg_transform(bg)
+            for ann in anns:
+                ann = ann[0]
+                # 取出实例
+                if ann['category_id'] == catId and not skip_this_image:
+                    # 首先取出实例
+                    img = crop_support(s, ann['bbox'])
+                    img = t(img)
+                    img = F.pad(img, [16, 16, 16, 16], 'constant', 0.)
+                    if is_cuda:
+                        img = img.cuda()
+                    support_tensors.append(img)
+                    # 不再取出实例
+                    skip_this_image = True
+                # 删除所有在支持集中的类别作为背景
+                if ann['category_id'] in catIds:
+                    x1, y1, w, h = ann['bbox']
+                    x1, y1, w, h = int(x1), int(y1), int(w), int(h)
+                    bg[:, y1:y1 + h, x1:x1 + w] = 0.
+            if is_cuda:
+                bg = bg.cuda()
+            bg_tensors.append(bg)
+
+    return support_tensors, bg_tensors
 
 
 def get_bg(support_and_ann, support_transforms, is_cuda):
@@ -182,22 +185,24 @@ def transform_anns(query_anns, is_cuda, label_ori: list):
         img_bboxes = []
         img_labels = []
         for i in query_ann:
-            # print(i)
+            ann_img = {}
             i = i[0]
             # print(i)
-            img_bboxes.append([i['bbox'][0], i['bbox'][1], i['bbox'][0] + i['bbox'][2], i['bbox'][1] + i['bbox'][3]])
-            if not label_ori == None:
+
+            if i['category_id'] in label_ori:
+                img_bboxes.append([i['bbox'][0], i['bbox'][1], i['bbox'][0] + i['bbox'][2], i['bbox'][1] + i['bbox'][3]])
                 img_labels.append(label_ori.index(i['category_id']) + 1)
-            else:
-                img_labels.append(i['category_id'])
+
             if is_cuda:
-                i.update({'boxes': torch.tensor(img_bboxes).cuda(),
-                          'labels': torch.tensor(img_labels).cuda()})
-                ann_img = i
+                ann_img.update({'boxes': torch.tensor(img_bboxes).cuda(),
+                                'labels': torch.tensor(img_labels).cuda(),
+                                'id': i['id'], 'category_id': i['category_id'], 'image_id': i['image_id']})
+
             else:
-                i.update({'boxes': torch.tensor(img_bboxes).cuda(),
-                          'labels': torch.tensor(img_labels).cuda()})
-                ann_img = i
+                ann_img.update({'boxes': torch.tensor(img_bboxes).cuda(),
+                                'labels': torch.tensor(img_labels).cuda(),
+                                'id': i['id'], 'category_id': i['category_id'], 'image_id': i['image_id']})
+
         anns.append(ann_img)
     return anns
 

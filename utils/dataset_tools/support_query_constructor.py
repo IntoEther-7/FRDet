@@ -24,7 +24,8 @@ from torchvision.transforms import transforms
 #     pass
 
 
-def one_way_k_shot(root, dataset: coco.COCO, dataset_img_path: str, catId: int, support_shot: int = 2, quick_test=False):
+def one_way_k_shot(root, dataset: coco.COCO, dataset_img_path: str, catIds: list, catId: int, support_shot: int = 2,
+                   quick_test=False):
     r"""
     针对某一个种类, 生成k-shot的support和query-shot的query, 并返回support, query, query的标注
     :param dataset: 数据集
@@ -33,21 +34,17 @@ def one_way_k_shot(root, dataset: coco.COCO, dataset_img_path: str, catId: int, 
     :param val_shot: 几个查询图像
     :return: support 已经经过裁剪的support(仅保留了box部分), query 查询图像, query_anns 查询图像的标注数据
     """
-    support_annIds, query_imgIds, val_imgIds = k_shot(dataset=dataset,
+    support_imgIds, query_imgIds, val_imgIds = k_shot(dataset=dataset,
                                                       catId=catId,
                                                       support_shot=support_shot, quick_test=quick_test)
 
-    support_and_ann = []
-    for support_annId in support_annIds:
-        ann = dataset.anns[support_annId]
-        # bbox = ann['bbox']
-        imgId = ann['image_id']
-        imgInfo = dataset.loadImgs(ids=[imgId])[0]
+    support = []
+    support_anns = []
+    for imgInfo in dataset.loadImgs(ids=support_imgIds):
         imgPath = os.path.join(root, dataset_img_path, imgInfo['file_name'])
-        # img = crop_support(imgPath, bbox)
-        # boxes.append(ann['bbox'])
-        # support.append(imgPath)
-        support_and_ann.append([imgPath, ann['bbox']])
+        support.append(imgPath)
+        annIds = dataset.getAnnIds(imgIds=[imgInfo['id']], catIds=catIds)
+        support_anns.append([dataset.loadAnns(annId) for annId in annIds])
 
     query = []
     query_anns = []  # type:list
@@ -55,7 +52,7 @@ def one_way_k_shot(root, dataset: coco.COCO, dataset_img_path: str, catId: int, 
         imgPath = os.path.join(root, dataset_img_path, imgInfo['file_name'])
         # img = PIL.Image.open(imgPath).convert('RGB')
         query.append(imgPath)
-        annIds = dataset.getAnnIds(imgIds=[imgInfo['id']], catIds=catId)
+        annIds = dataset.getAnnIds(imgIds=[imgInfo['id']], catIds=catIds)
         query_anns.append([dataset.loadAnns(annId) for annId in annIds])
 
     val = []
@@ -64,9 +61,9 @@ def one_way_k_shot(root, dataset: coco.COCO, dataset_img_path: str, catId: int, 
         imgPath = os.path.join(root, dataset_img_path, imgInfo['file_name'])
         # img = PIL.Image.open(imgPath).convert('RGB')
         val.append(imgPath)
-        annIds = dataset.getAnnIds(imgIds=[imgInfo['id']], catIds=catId)
+        annIds = dataset.getAnnIds(imgIds=[imgInfo['id']], catIds=catIds)
         val_anns.append([dataset.loadAnns(annId) for annId in annIds])
-    return support_and_ann, query, query_anns, val, val_anns
+    return support, support_anns, query, query_anns, val, val_anns
 
 
 def k_shot(dataset: coco.COCO, catId: int, support_shot: int = 2, quick_test=False):
@@ -89,16 +86,11 @@ def k_shot(dataset: coco.COCO, catId: int, support_shot: int = 2, quick_test=Fal
     support_imgIds = imgIds_sample[:support_shot]
     query_imgIds = imgIds_sample[support_shot:support_shot + query_shot]
     val_imgIds = imgIds_sample[support_shot + query_shot:]
-    # 支持图像的ann
-    support_annIds_all = dataset.getAnnIds(imgIds=support_imgIds, catIds=[catId])
-    support_annIds = random.sample(support_annIds_all, support_shot)
-    # 查询图像的ann
-    query_annIDs = dataset.getAnnIds(imgIds=query_imgIds, catIds=[catId])
 
     if quick_test:
         query_imgIds = [query_imgIds[0]]
         val_imgIds = [val_imgIds[0]]
-    return support_annIds, query_imgIds, val_imgIds
+    return support_imgIds, query_imgIds, val_imgIds
 
 # if __name__ == '__main__':
 #     root = '../../datasets/fsod/'

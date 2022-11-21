@@ -21,7 +21,7 @@ if __name__ == '__main__':
     # 设置
     is_cuda = True
     torch.set_printoptions(sci_mode=False)
-    random.seed(1096)
+    # random.seed(1096)
 
     # 设置参数
     torch.cuda.set_device(1)
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     # 生成模型
     model = FRDet(
         # box_predictor params
-        way, shot, roi_size=7, num_classes=way,
+        way, shot, roi_size=7, num_classes=way + 1,
         # backbone
         backbone_name='resnet18', pretrained=True,
         returned_layers=None, trainable_layers=3,
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         for i in range(num_mission):
             # 准备训练数据
             catIds = cat_list[i * way:(i + 1) * way]
-            s, q, q_anns, val, val_anns = load_data(fsod, catIds, support_size=(320, 320), is_cuda=is_cuda)
+            s, s_anns, q, q_anns, val, val_anns, bg = load_data(fsod, catIds, support_size=(320, 320), is_cuda=is_cuda)
             # 训练
             model.train()
             pbar = tqdm(range(len(q) // query_batch))
@@ -121,7 +121,7 @@ if __name__ == '__main__':
                             query.pop(tmp_index)
                 query, target = read_batch(query, target, label_ori=catIds, query_transforms=transforms.Compose(
                     [transforms.ToTensor()]), is_cuda=is_cuda)
-                result = model.forward(s, query, targets=target)
+                result = model.forward(s, query, bg, targets=target)
                 losses = 0
                 for loss in result.values():
                     losses += loss
