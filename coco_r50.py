@@ -23,16 +23,16 @@ if __name__ == '__main__':
     random.seed(1096)
 
     # 设置参数
-    torch.cuda.set_device(1)
+    torch.cuda.set_device(0)
     way = 5
     shot = 2
     query_batch = 16
 
     # 生成数据集
-    root = '../FRNOD/datasets/fsod'
-    train_json = 'annotations/fsod_train.json'
-    test_json = 'annotations/fsod_test.json'
-    fsod = CocoDataset(root=root, ann_path=train_json, img_path='images',
+    root = '../FRNOD/datasets/coco'
+    train_json = 'annotations/instances_train2017.json'
+    test_json = 'annotations/instances_val2017.json'
+    fsod = CocoDataset(root=root, ann_path=train_json, img_path='train2017',
                        way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
 
     # 生成模型
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------------------------------------------------
 
     # 保存的相关参数
-    save_root = 'results_fsod_r50'
+    save_root = 'results_coco_r50'
     save_weights = os.path.join(save_root, 'weights')
     save_results = os.path.join(save_root, 'results')
     save_train_loss = os.path.join(save_results, 'train_loss.json')

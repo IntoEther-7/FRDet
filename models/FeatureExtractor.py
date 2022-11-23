@@ -31,16 +31,21 @@ class FeatureExtractor(nn.Module):
                                             returned_layers=returned_layers)  # (n, 256, x, x)
         self.inception = Inception(256)
         self.upsample = nn.UpsamplingBilinear2d(scale_factor=2.)
+        # self.conv = nn.Sequential(
+        #     nn.Conv2d(1280, 1024, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2d(1024),
+        #     nn.LeakyReLU(inplace=True),
+        #     nn.Conv2d(1024, 512, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2d(512),
+        #     nn.LeakyReLU(inplace=True),
+        #     nn.Conv2d(512, 256, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2d(256),
+        #     nn.LeakyReLU(inplace=True)
+        # )
         self.conv = nn.Sequential(
-            nn.Conv2d(1280, 1024, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(1024),
-            nn.LeakyReLU(inplace=True),
-            nn.Conv2d(1024, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(inplace=True),
-            nn.Conv2d(512, 256, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(1280, 256, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(256),
-            nn.LeakyReLU(inplace=True)
+            nn.LeakyReLU(inplace=True),
         )
 
     def forward(self, x):

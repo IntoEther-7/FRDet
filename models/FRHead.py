@@ -31,6 +31,15 @@ class FRPredictHead(nn.Module):
         self.num_classes = num_classes
         self.Woodubry = Woodubry
         self.bbox_pred = nn.Linear(representation_size, num_classes * 4)
+        self.encoder = nn.Sequential(nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
+                                     nn.BatchNorm2d(256),
+                                     nn.LeakyReLU(inplace=True),
+                                     nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
+                                     nn.BatchNorm2d(256),
+                                     nn.LeakyReLU(inplace=True),
+                                     nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0),
+                                     nn.BatchNorm2d(256),
+                                     nn.LeakyReLU(inplace=True))
         self.r = nn.Parameter(torch.zeros(2), requires_grad=True)
         self.scale = nn.Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
@@ -41,6 +50,9 @@ class FRPredictHead(nn.Module):
         x = x.flatten(start_dim=1)
         bbox_deltas = self.bbox_pred(x)
 
+        support = self.encoder(support)
+        bg = self.encoder(bg)
+        query = self.encoder(query)
         # 分类
         scores, support = self.cls_predictor(
             support=support,
