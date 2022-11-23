@@ -99,7 +99,7 @@ if __name__ == '__main__':
     iteration = 0
     max_iteration = 60000
     stop_flag = False
-    loss_dict = {}
+
     while iteration < max_iteration:
         if iteration < 56000:
             optimizer = torch.optim.SGD(model.parameters(), lr=0.002, momentum=0.9, weight_decay=0.0005)
@@ -108,6 +108,8 @@ if __name__ == '__main__':
 
         # 训练一个轮回
         fsod.initial()
+        model.train()
+        loss_dict_train = {}
         fsod.set_mode(is_training=True)
         pbar = tqdm(fsod)
         for index, item in enumerate(pbar):
@@ -115,8 +117,8 @@ if __name__ == '__main__':
             if iteration > max_iteration:
                 break
             support, bg, query, query_anns, cat_ids = item
+
             # 训练
-            model.train()
             fsod.set_mode(is_training=True)
             result = model.forward(support, query, bg, targets=query_anns)
             losses = 0
@@ -125,7 +127,7 @@ if __name__ == '__main__':
                 losses += v
                 loss_this_iteration.update({k: float(v)})
             loss_this_iteration = {iteration + 1: loss_this_iteration}
-            loss_dict.update(loss_this_iteration)
+            loss_dict_train.update(loss_this_iteration)
 
             postfix = {'iteration': '{}/{}'.format(iteration + 1, max_iteration),
                        'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
@@ -145,8 +147,8 @@ if __name__ == '__main__':
                 with open(save_train_loss, 'r') as f:
                     tmp_loss_dict = json.load(f)
                 with open(save_train_loss, 'w') as f:
-                    tmp_loss_dict.update(loss_dict)
-                    loss_dict = {}
+                    tmp_loss_dict.update(loss_dict_train)
+                    loss_dict_train = {}
                     json.dump(tmp_loss_dict, f)
                 torch.save({'models': model.state_dict()},
                            os.path.join(save_weights, 'FRDet_{}.pth'.format(iteration + 1)))
@@ -155,30 +157,30 @@ if __name__ == '__main__':
         # 验证一个轮回
         fsod.set_mode(is_training=False)
         pbar = tqdm(fsod)
+        loss_dict_val = {}
         for index, item in enumerate(pbar):
             loss_this_epoch = {}
             support, bg, query, query_anns, cat_ids = item
             # 训练
-            model.train()
-            fsod.set_mode(is_training=True)
             result = model.forward(support, query, bg, targets=query_anns)
             losses = 0
-
             for k, v in result.items():
                 losses += v
                 loss_this_epoch.update({k: float(v)})
             loss_this_epoch = {index + 1: loss_this_epoch}
+            loss_dict_val.update(loss_this_epoch)
 
-            postfix = {'iteration': '{}/{}'.format(iteration + 1, max_iteration),
-                       'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
+            postfix = {'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
                        'catIds': cat_ids,
                        '模式': 'val',
                        '损失': "%.6f" % float(losses)}
             pbar.set_postfix(postfix)
 
             # 保存loss
-            with open(save_val_loss, 'r') as f:
-                tmp_loss_dict = json.load(f)
-            with open(save_val_loss, 'w') as f:
-                tmp_loss_dict.update(loss_this_epoch)
-                json.dump(tmp_loss_dict, f)
+            if (index + 1) % 100 == 0:  # 记得改
+                with open(save_val_loss, 'r') as f:
+                    tmp_loss_dict = json.load(f)
+                with open(save_val_loss, 'w') as f:
+                    tmp_loss_dict.update(loss_dict_val)
+                    loss_dict_val = {}
+                    json.dump(tmp_loss_dict, f)

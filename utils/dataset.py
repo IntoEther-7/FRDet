@@ -51,8 +51,13 @@ class CocoDataset(Dataset):
         # 将任务划分为每次迭代的数据
         self.train_iteration = self.split_iteration(self.train_mission)
         self.val_iteration = self.split_iteration(self.val_mission)
+        self.set_mode(is_training=True)
 
     def delete_bad_annotations(self):
+        r"""
+        在划分数据集前先把一些错误标注的图像/标注根据情况删除
+        :return:
+        """
         delete_anns = []
         image_influenced = []
         delete_image = []
@@ -82,6 +87,11 @@ class CocoDataset(Dataset):
         tqdm.write('删除标注{}\n影响的图像{}\n删除的图像{}'.format(delete_anns, image_influenced, delete_image))
 
     def set_mode(self, is_training):
+        r"""
+        设置训练模式, 根据情况返回训练样本
+        :param is_training:
+        :return:
+        """
         if is_training:
             self.training = True
             self.iteration = self.train_iteration
@@ -161,7 +171,7 @@ class CocoDataset(Dataset):
                                       img_this_iteration]
                 support_ids = []
                 for k in cat_ids:
-                    s_img = random.sample(self.train_img[k], 2)
+                    s_img = random.sample(self.train_img[k], self.shot)
                     anns = [self.coco.getAnnIds(imgIds=[s], catIds=[k]) for s in s_img]
                     for ann in anns:
                         support_ids.extend(random.sample(ann, 1))
@@ -173,6 +183,11 @@ class CocoDataset(Dataset):
         return iteration
 
     def id2item(self, this_iteration):
+        r"""
+        读取数据, 并预处理
+        :param this_iteration: 这个iteration的数据
+        :return:
+        """
         support_label_ids = this_iteration['support_label_ids']
         query_ids = this_iteration['query_ids']
         query_label_ids = this_iteration['query_label_ids']
@@ -231,6 +246,13 @@ class CocoDataset(Dataset):
         return support, bg, query, query_anns
 
     def crop_support_bg(self, support_label_ids, cat_ids, is_show=False):
+        r"""
+        处理支持集, 并得到背景
+        :param support_label_ids:
+        :param cat_ids:
+        :param is_show:
+        :return:
+        """
         support_ann = self.coco.loadAnns(support_label_ids)
         support = []
         bg = []
@@ -247,7 +269,7 @@ class CocoDataset(Dataset):
             # crop support
             x, y, w, h = ann['bbox']
             img = Image.open(img_path).convert('RGB')
-            img = img.crop([x, y, x + w, y + h])
+            img = img.crop((x, y, x + w, y + h))
 
             # get background
             bg_img = Image.open(img_path).convert('RGB')
@@ -278,10 +300,10 @@ if __name__ == '__main__':
     # fsod = CocoDataset(root=root, ann_path=test_json, img_path='images', way=5, shot=2, is_cuda=True)
     # for support, bg, query, query_anns, cat_ids in fsod:
     #     print()
-
+    random.seed(1)
     root = '../../FRNOD/datasets/coco'
     train_json = 'annotations/instances_train2017.json'
     test_json = 'annotations/instances_val2017.json'
-    fsod = CocoDataset(root=root, ann_path=train_json, img_path='train2017', way=5, shot=2, is_cuda=True)
+    fsod = CocoDataset(root=root, ann_path=train_json, img_path='train2017', way=20, shot=5, is_cuda=True)
     for support, bg, query, query_anns, cat_ids in tqdm(fsod):
         pass
