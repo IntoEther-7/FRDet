@@ -82,14 +82,15 @@ class MultiplyAttentionRPN(RegionProposalNetwork):
                 f = f.mean(1)
                 f = f.view(self.way * c, w, h)
                 f_list.append(f)
-                losses_attention += loss_a
+                if self.training:
+                    losses_attention += loss_a
             losses_attention = losses_attention / feature.shape[0]
             features_l.append(torch.stack(f_list, dim=0))
         features = features_l
         if self.training:
             loss_attention = losses_attention
 
-        objectness, pred_bbox_deltas = self.head(features)
+        objectness, pred_bbox_deltas = self.head.forward(features)
         anchors = self.anchor_generator(images, features)
 
         num_images = len(anchors)

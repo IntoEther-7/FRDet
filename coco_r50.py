@@ -77,7 +77,7 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------------------------------------------------------
 
     # 保存的相关参数
-    save_root = 'results_coco_r50'
+    save_root = 'results_coco_r50_5way_2shot'
     save_weights = os.path.join(save_root, 'weights')
     save_results = os.path.join(save_root, 'results')
     save_train_loss = os.path.join(save_results, 'train_loss.json')

@@ -45,7 +45,7 @@ class FeatureExtractor(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(1280, 256, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(256),
-            nn.LeakyReLU(inplace=True),
+            nn.LeakyReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -65,7 +65,7 @@ class FeatureExtractor(nn.Module):
 
 
 if __name__ == '__main__':
-    x = [torch.randn([5, 3, 1024, 512]) for i in range(4)]
-    resnet50 = FeatureExtractor(1, 5, 'resnet50', pretrained=False)
+    x = torch.randn([5, 3, 1024, 512])
+    resnet50 = FeatureExtractor(backbone_name='resnet50', pretrained=True)
     result = resnet50.forward(x)
     print()

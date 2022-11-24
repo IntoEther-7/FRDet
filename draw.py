@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 # 每个mission的loss
 from tqdm import tqdm
 
-root = 'results_fsod_r50/results'
+root = 'results_fsod_r50_5way_2shot/results'
 loss_path = os.path.join(root, 'train_loss.json')
 
 if __name__ == '__main__':
@@ -30,8 +30,8 @@ if __name__ == '__main__':
         loss_iteration_list.append(loss_this_iteration)
     statistics_loss.update({'loss_sum': loss_iteration_list})
     for k, v in statistics_loss.items():
-        fig = plt.figure(figsize=(12, 6.75), dpi=320.)
-        plt.plot(v, linewidth=0.5)
+        fig = plt.figure(figsize=(24, 6.75), dpi=320.)
+        plt.plot(v, linewidth=1)
         plt.legend('train_loss')
         plt.draw()
         plt.savefig(os.path.join(root, '{}.png'.format(k)))

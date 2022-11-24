@@ -82,7 +82,7 @@ def trainer(
             # RPN parameters
             rpn_anchor_generator=None, rpn_head=None,
             rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=6000,
-            rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=500,
+            rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=100,
             rpn_nms_thresh=0.7,
             rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
             rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
@@ -118,13 +118,14 @@ def trainer(
 
     # 训练轮数
     if continue_iteration is not None and continue_weight is not None:
-        iteration = continue_iteration - 1
+        continue_weight = os.path.join(save_root, 'weights', continue_weight)
+        iteration = continue_iteration
         weight = torch.load(continue_weight)
         model.load_state_dict(weight['models'])
     else:
         iteration = 1
 
-    while iteration < max_iteration:
+    while iteration - 1 < max_iteration:
         if iteration < 56000:
             optimizer = torch.optim.SGD(model.parameters(), lr=0.002, momentum=0.9, weight_decay=0.0005)
         else:
@@ -143,7 +144,7 @@ def trainer(
             support, bg, query, query_anns, cat_ids = item
 
             # 训练
-            fsod.set_mode(is_training=True)
+
             result = model.forward(support, query, bg, targets=query_anns)
             losses = 0
 
@@ -152,7 +153,6 @@ def trainer(
                 loss_this_iteration.update({k: float(v)})
             loss_this_iteration = {iteration: loss_this_iteration}
             loss_dict_train.update(loss_this_iteration)
-
             postfix = {'iteration': '{}/{}'.format(iteration, max_iteration),
                        'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
                        'catIds': cat_ids,
