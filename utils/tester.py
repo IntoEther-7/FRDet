@@ -25,7 +25,7 @@ def tester(
         # 设备参数
         random_seed=None, gpu_index=0,
         # 数据集参数
-        root=None, json_path=None,
+        root=None, json_path=None, img_path=None,
         # 模型
         model: FRDet = None,
         # 权重文件
@@ -53,6 +53,7 @@ def tester(
     # 检查参数
     assert root is not None, "root is None"
     assert json_path is not None, "json_path is none"
+    assert img_path is not None, "img_path is none"
     # 设置
     torch.set_printoptions(sci_mode=False)
     if random_seed is not None:
@@ -62,7 +63,7 @@ def tester(
     torch.cuda.set_device(gpu_index)
 
     # 生成数据集
-    fsod = CocoDataset(root=root, ann_path=json_path, img_path='images',
+    dataset = CocoDataset(root=root, ann_path=json_path, img_path=img_path,
                        way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
 
     # 模型
@@ -117,13 +118,13 @@ def tester(
     model.load_state_dict(weight['models'])
 
     # 验证一个轮回
-    fsod.initial()
+    dataset.initial()
     model.eval()
     predictions = []
-    fsod.set_mode(is_training=True)
-    predictions.extend(test_iteration(fsod, model, save_images))
-    fsod.set_mode(is_training=False)
-    predictions.extend(test_iteration(fsod, model, save_images))
+    dataset.set_mode(is_training=True)
+    predictions.extend(test_iteration(dataset, model, save_images))
+    dataset.set_mode(is_training=False)
+    predictions.extend(test_iteration(dataset, model, save_images))
     with open(save_json, 'w') as f:
         json.dump(predictions, f)
 

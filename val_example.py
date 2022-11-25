@@ -20,6 +20,7 @@ if __name__ == '__main__':
         # 数据集参数
         root='../FRNOD/datasets/fsod',
         json_path='annotations/fsod_train.json',
+        img_path='images',
         # 模型
         model=None,
         # 权重文件

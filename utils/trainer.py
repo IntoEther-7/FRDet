@@ -23,7 +23,7 @@ def trainer(
         # 设备参数
         random_seed=None, gpu_index=0,
         # 数据集参数
-        root=None, json_path=None,
+        root=None, json_path=None, img_path=None,
         # 模型
         model: FRDet = None,
         # 训练轮数
@@ -53,6 +53,7 @@ def trainer(
     # 检查参数
     assert root is not None, "root is None"
     assert json_path is not None, "json_path is none"
+    assert img_path is not None, "img_path is none"
     assert (continue_iteration is None and continue_weight is None) \
            or (continue_iteration is not None and continue_weight is not None), \
         "continue_iteration and continue_weight should be all None, or all not None"
@@ -65,7 +66,7 @@ def trainer(
     torch.cuda.set_device(gpu_index)
 
     # 生成数据集
-    fsod = CocoDataset(root=root, ann_path=json_path, img_path='images',
+    dataset = CocoDataset(root=root, ann_path=json_path, img_path=img_path,
                        way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
 
     # 模型
@@ -132,11 +133,11 @@ def trainer(
             optimizer = torch.optim.SGD(model.parameters(), lr=0.0002, momentum=0.9, weight_decay=0.0005)
 
         # 训练一个轮回
-        fsod.initial()
+        dataset.initial()
         model.train()
         loss_dict_train = {}
-        fsod.set_mode(is_training=True)
-        pbar = tqdm(fsod)
+        dataset.set_mode(is_training=True)
+        pbar = tqdm(dataset)
         for index, item in enumerate(pbar):
             loss_this_iteration = {}
             if iteration > max_iteration:
@@ -179,8 +180,8 @@ def trainer(
             iteration += 1
 
         # 验证一个轮回
-        fsod.set_mode(is_training=False)
-        pbar = tqdm(fsod)
+        dataset.set_mode(is_training=False)
+        pbar = tqdm(dataset)
         loss_dict_val = {}
         for index, item in enumerate(pbar):
             loss_this_epoch = {}
