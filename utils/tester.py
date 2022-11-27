@@ -46,7 +46,7 @@ def tester(
     :param model:
     :param max_iteration:
     :param continue_iteration:
-    :param continue_weight:
+    :param continue_weight: 只写名称即可, 会进入'save_root/weights/'寻找权重文件
     :param save_root:
     :return:
     """

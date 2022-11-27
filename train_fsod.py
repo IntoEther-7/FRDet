@@ -13,7 +13,7 @@ img_path = 'images'
 
 
 def way_shot_train(way, shot):
-    save_root = '/data/chenzh/FRDet/result_fsod_{}way_{}shot'.format(way, shot)
+    save_root = '/data/chenzh/FRDet/result_fsod_r50_{}way_{}shot'.format(way, shot)
     trainer(
         # 基础参数
         way=way, shot=shot, query_batch=16, is_cuda=True,

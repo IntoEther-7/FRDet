@@ -75,7 +75,7 @@ def trainer(
             # box_predictor params
             way, shot, roi_size=7, num_classes=way + 1,
             # backbone
-            backbone_name='resnet18', pretrained=True,
+            backbone_name='resnet50', pretrained=True,
             returned_layers=None, trainable_layers=3,
             # transform parameters
             min_size=600, max_size=1000,
@@ -83,7 +83,7 @@ def trainer(
             # RPN parameters
             rpn_anchor_generator=None, rpn_head=None,
             rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=6000,
-            rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=100,
+            rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=500,
             rpn_nms_thresh=0.7,
             rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
             rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,

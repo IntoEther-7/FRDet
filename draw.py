@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 # 每个mission的loss
 from tqdm import tqdm
 
-root = 'results_fsod_r50_5way_2shot/results'
+root = 'result/result_coco_2way_5shot/results'
 loss_path = os.path.join(root, 'train_loss.json')
 
 if __name__ == '__main__':
