@@ -180,32 +180,32 @@ def trainer(
             iteration += 1
 
         # 验证一个轮回
-        dataset.set_mode(is_training=False)
-        pbar = tqdm(dataset)
-        loss_dict_val = {}
-        for index, item in enumerate(pbar):
-            loss_this_epoch = {}
-            support, bg, query, query_anns, cat_ids = item
-            # 训练
-            result = model.forward(support, query, bg, targets=query_anns)
-            losses = 0
-            for k, v in result.items():
-                losses += v
-                loss_this_epoch.update({k: float(v)})
-            loss_this_epoch = {index + 1: loss_this_epoch}
-            loss_dict_val.update(loss_this_epoch)
-
-            postfix = {'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
-                       'catIds': cat_ids,
-                       '模式': 'val',
-                       '损失': "%.6f" % float(losses)}
-            pbar.set_postfix(postfix)
-
-            # 保存loss
-            if (index + 1) % 100 == 0:  # 记得改
-                with open(save_val_loss, 'r') as f:
-                    tmp_loss_dict = json.load(f)
-                with open(save_val_loss, 'w') as f:
-                    tmp_loss_dict.update(loss_dict_val)
-                    loss_dict_val = {}
-                    json.dump(tmp_loss_dict, f)
+        # dataset.set_mode(is_training=False)
+        # pbar = tqdm(dataset)
+        # loss_dict_val = {}
+        # for index, item in enumerate(pbar):
+        #     loss_this_epoch = {}
+        #     support, bg, query, query_anns, cat_ids = item
+        #     # 训练
+        #     result = model.forward(support, query, bg, targets=query_anns)
+        #     losses = 0
+        #     for k, v in result.items():
+        #         losses += v
+        #         loss_this_epoch.update({k: float(v)})
+        #     loss_this_epoch = {index + 1: loss_this_epoch}
+        #     loss_dict_val.update(loss_this_epoch)
+        #
+        #     postfix = {'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
+        #                'catIds': cat_ids,
+        #                '模式': 'val',
+        #                '损失': "%.6f" % float(losses)}
+        #     pbar.set_postfix(postfix)
+        #
+        #     # 保存loss
+        #     if (index + 1) % 100 == 0:  # 记得改
+        #         with open(save_val_loss, 'r') as f:
+        #             tmp_loss_dict = json.load(f)
+        #         with open(save_val_loss, 'w') as f:
+        #             tmp_loss_dict.update(loss_dict_val)
+        #             loss_dict_val = {}
+        #             json.dump(tmp_loss_dict, f)

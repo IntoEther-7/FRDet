@@ -2,27 +2,26 @@
 # PRODUCT: PyCharm
 # AUTHOR: 17795
 # TIME: 2022-11-17 18:54
-import os.path
 
 import torch
 
-from models.FRDet import FRDet
 from utils.tester import tester
+from utils.trainer import trainer
 
 torch.set_printoptions(sci_mode=False)
-root = '../FRNOD/datasets/coco'
-json_path = 'annotations/instances_train2017.json'
-img_path = 'train2017'
+root = '../FRNOD/datasets/fsod'
+json_path = 'annotations/fsod_train.json'
+img_path = 'images'
 
 
 def way_shot_test(way, shot):
-    save_root = '/data/chenzh/FRDet/result_coco_{}way_{}shot'.format(way, shot)
+    save_root = '/data/chenzh/FRDet/result_fsod_r50_{}way_{}shot'.format(way, shot)
     continue_weight = 'FRDet_60000.pth'
     tester(
         # 基础参数
         way=way, shot=shot, query_batch=16, is_cuda=True,
         # 设备参数
-        random_seed=None, gpu_index=1,
+        random_seed=None, gpu_index=0,
         # 数据集参数
         root=root,
         json_path=json_path,
@@ -36,7 +35,4 @@ def way_shot_test(way, shot):
 
 
 if __name__ == '__main__':
-    way_shot_test(5, 5)
-    way_shot_test(2, 5)
-    way_shot_test(2, 1)
     way_shot_test(1, 1)
