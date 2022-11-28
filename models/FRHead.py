@@ -206,3 +206,121 @@ class FRPredictHead(nn.Module):
         # b = 1 - metric_matrix.max(1).values * k
         # metric_matrix = metric_matrix * k.unsqueeze(1) + b.unsqueeze(1)
         return metric_matrix
+
+
+class FRPredictHeadWithFlatten(nn.Module):
+    def __init__(self, way, shot, in_channels, num_classes, dropout_rate=0.3):
+        super(FRPredictHeadWithFlatten, self).__init__()
+        self.way = way
+        self.shot = shot
+        self.representation_size = in_channels
+        self.cls_auto_encoder = nn.Sequential(
+            nn.Linear(in_channels, num_classes),
+            nn.Dropout(dropout_rate),
+            nn.Linear(num_classes, num_classes),
+            nn.Dropout(dropout_rate)
+        )
+        self.bbox_pred = nn.Linear(in_channels, num_classes * 4)
+        self.r = nn.Parameter(torch.zeros(2), requires_grad=True)
+        self.scale = nn.Parameter(torch.FloatTensor([1.0]), requires_grad=True)
+
+    def forward(self, support_fc, bg_fc, query_fc, box_fc):
+        # 回归
+        if box_fc.dim() == 4:
+            assert list(box_fc.shape[2:]) == [1, 1]
+        box_fc = box_fc.flatten(start_dim=1)
+        bbox_deltas = self.bbox_pred(box_fc)
+
+        # 分类
+        scores, support = self.cls_predictor(support_fc, bg_fc, box_fc)
+
+        return scores, bbox_deltas, support
+
+    def cls_predictor(self, support: torch.Tensor, bg: torch.Tensor, boxes_features: torch.Tensor, Woodubry=True):
+        r"""
+
+        :param support: (way * shot, representation_size)
+        :param boxes_features: (roi_num, representation_size)
+        :param Woodubry:
+        :return:
+        """
+        support = support.reshape(self.way, self.shot, self.representation_size)
+        bg = bg.reshape(self.way, self.shot, self.representation_size)
+        bg = torch.unsqueeze(bg.mean(0), 0)
+        support_bg = torch.cat([bg, support], dim=0)  # (way + 1, shot, r)
+        Q_bar = self.reconstruct_feature_map(support_bg, boxes_features, Woodubry)
+        euclidean_matrix = self.euclidean_metric(boxes_features, Q_bar)  # [roi数 * resolution, way + 1]
+        metric_matrix = self.metric(euclidean_matrix)  # (roi数, way)
+        logits = metric_matrix * self.scale.exp()  # (roi数, way + 1), 防止logits的数值过小导致softmax评分差距不大, 温度T
+        return logits, support
+
+    def reconstruct_feature_map(self, support: torch.Tensor, query: torch.Tensor, Woodubry=True):
+        r"""
+        通过支持特征图对查询特征图进行重构
+        :param support: (way, shot * resolution, c)
+        :param query: (shot * resolution, channel)
+        :param alpha: alpha
+        :param beta: beta
+        :param Woodubry: 是否使用Woodbury等式, 不使用的话就是用优化后的Woodbury等式
+        :return: 重构的特征
+        """
+        # kr/d
+        alpha = self.r[0]
+        beta = self.r[1]
+        reg = support.size(1) / support.size(2)
+
+        # λ
+        lam = reg * alpha.exp() + 1e-6
+
+        # γ
+        rho = beta.exp()
+
+        support_t: torch.Tensor = support.T  # (way, shot, r) -> (r, shot, way)
+        support_t = support_t.permute(2, 0, 1)  # (way, r , shot)
+
+        if not Woodubry:
+            # channel < kr 建议使用eq10
+            # FRN论文, 公式10
+            # https://ether-bucket-nj.oss-cn-nanjing.aliyuncs.com/img/image-20220831103223203.pn
+            # ScT * Sc
+            st_s = support_t.matmul(support)  # (way, channel, channel)
+            m_inv = torch.eye(st_s.size(-1)).to(st_s.device).unsqueeze(0)
+            m_inv = m_inv.mul(lam)
+            m_inv = (m_inv + st_s).inverse()
+            # m_inv_1 = (st_s + torch.eye(st_s.size(-1)).to(st_s.device).unsqueeze(0).
+            #            mul(lam)).inverse()  # (way, channel, channel)
+            hat = m_inv.matmul(st_s)
+        else:
+            # channel > kr 建议使用eq8
+            # Sc * ScT
+            # https://ether-bucket-nj.oss-cn-nanjing.aliyuncs.com/img/image-20220831095706524.pn
+            s_st = support.matmul(support_t)  # (way, shot*resolution, shot*resolution)
+            m_inv = (s_st + torch.eye(s_st.size(-1)).to(s_st.device).unsqueeze(0).mul(
+                lam)).inverse()  # (way, shot*resolution, shot*resolutions)
+            hat = support_t.matmul(m_inv).matmul(support)  # (way, channel, channel)
+        Q_bar = query.matmul(hat).mul(rho)  # (way, way*query_shot*resolution, channel)
+
+        return Q_bar  # 重构的特征
+
+    def euclidean_metric(self, query: torch.Tensor, Q_bar: torch.Tensor):
+        r"""
+        欧几里得度量矩阵
+        :param query: 查询图特征
+        :param Q_bar: 预算查询图特征
+        :return: 返回欧几里得距离矩阵
+        """
+        euclidean_matrix = Q_bar - query.unsqueeze(0)  # [way, roi数 * resolution, channel]
+        euclidean_matrix = euclidean_matrix.pow(2)  # [way, roi数 * resolution, channel], 距离不需要负值
+        euclidean_matrix = euclidean_matrix.sum(2)  # [way, roi数 * resolution]
+        euclidean_matrix = euclidean_matrix.permute(1, 0)  # [roi数 * resolution, way]
+        euclidean_matrix = euclidean_matrix / self.representation_size
+        return euclidean_matrix  # 距离矩阵
+
+    def metric(self, euclidean_matrix):
+        r"""
+        利用欧几里得度量矩阵, 计算定义距离
+        :param euclidean_matrix: 欧几里得度量矩阵, (roi数 * resolution, way)
+        :return: 返回距离计算, 负数, 也就是可以当scores
+        """
+        metric_matrix = euclidean_matrix.neg()  # [roi数 * resolution, way]
+        return metric_matrix

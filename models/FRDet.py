@@ -13,7 +13,7 @@ from torchvision.models.detection.rpn import RPNHead
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
 
-from models.FRHead import FRBoxHead, FRPredictHead
+from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten
 from models.FeatureExtractor import FeatureExtractor
 
 from models.MARPN import MultiplyAttentionRPN
@@ -26,8 +26,8 @@ class FRDet(GeneralizedRCNN):
                  way, shot, roi_size,
                  num_classes=None,
                  # backbone
-                 backbone_name='resnet50', pretrained=True,
-                 returned_layers=None, trainable_layers=3,
+                 backbone_name='resnet50', pretrained=False,
+                 returned_layers=None, trainable_layers=4,
                  # transform parameters
                  min_size=600, max_size=1000,
                  image_mean=None, image_std=None,
@@ -98,7 +98,6 @@ class FRDet(GeneralizedRCNN):
                                     trainable_layers=trainable_layers)
         out_channels = backbone.out_channels
         channels = out_channels
-        num_classes = num_classes + 1  # 加入背景
 
         # transform
         if image_mean is None:
@@ -142,12 +141,12 @@ class FRDet(GeneralizedRCNN):
                 out_channels * resolution ** 2,
                 representation_size)
         if channels < way * resolution:
-            Woodubry = True
-        else:
             Woodubry = False
+        else:
+            Woodubry = True
         if box_predictor is None:
             representation_size = 1024
-            box_predictor = FRPredictHead(way, shot, representation_size, num_classes, Woodubry)
+            box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, Woodubry)
         roi_heads = ModifiedRoIHeads(
             # Box
             box_roi_pool, box_head, box_predictor,

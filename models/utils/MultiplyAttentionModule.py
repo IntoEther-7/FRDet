@@ -69,5 +69,5 @@ class MultiplyAttentionModule(nn.Module):
     def _compute_attention_loss(self, mask: Tensor, fg_attention: Tensor):
         t = transforms.Resize(fg_attention.shape[2:])
         mask = t(mask.unsqueeze(0).unsqueeze(0)).to(fg_attention.device)
-        loss_attention = F.binary_cross_entropy(fg_attention, mask)
+        loss_attention = F.binary_cross_entropy(fg_attention, mask) * 0.3
         return loss_attention

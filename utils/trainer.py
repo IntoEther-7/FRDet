@@ -67,7 +67,7 @@ def trainer(
 
     # 生成数据集
     dataset = CocoDataset(root=root, ann_path=json_path, img_path=img_path,
-                       way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
+                          way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
 
     # 模型
     if model is None:
@@ -75,7 +75,7 @@ def trainer(
             # box_predictor params
             way, shot, roi_size=7, num_classes=way + 1,
             # backbone
-            backbone_name='resnet50', pretrained=True,
+            backbone_name='resnet50', pretrained=False,
             returned_layers=None, trainable_layers=3,
             # transform parameters
             min_size=600, max_size=1000,
@@ -127,7 +127,9 @@ def trainer(
         iteration = 1
 
     while iteration - 1 < max_iteration:
-        if iteration < 56000:
+        if iteration < 40000:
+            optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0005)
+        elif iteration < 56000:
             optimizer = torch.optim.SGD(model.parameters(), lr=0.002, momentum=0.9, weight_decay=0.0005)
         else:
             optimizer = torch.optim.SGD(model.parameters(), lr=0.0002, momentum=0.9, weight_decay=0.0005)
