@@ -109,6 +109,16 @@ class CocoDataset(Dataset):
             query = [q.cuda() for q in query]
         return support, bg, query, query_anns, cat_ids
 
+    def get_val(self, index) -> T_co:
+        this_iteration = self.val_iteration[index]
+        support, bg, query, query_anns = self.id2item(this_iteration)
+        cat_ids = this_iteration['cat_ids']
+        if self.is_cuda:
+            support = [s.cuda() for s in support]
+            bg = [b.cuda() for b in bg]
+            query = [q.cuda() for q in query]
+        return support, bg, query, query_anns, cat_ids
+
     def __len__(self):
         return len(self.iteration)
 

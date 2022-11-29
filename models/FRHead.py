@@ -215,10 +215,9 @@ class FRPredictHeadWithFlatten(nn.Module):
         self.shot = shot
         self.representation_size = in_channels
         self.cls_auto_encoder = nn.Sequential(
-            nn.Linear(in_channels, num_classes),
+            nn.Linear(in_channels, in_channels),
             nn.Dropout(dropout_rate),
-            nn.Linear(num_classes, num_classes),
-            nn.Dropout(dropout_rate)
+            nn.Linear(in_channels, in_channels)
         )
         self.bbox_pred = nn.Linear(in_channels, num_classes * 4)
         self.r = nn.Parameter(torch.zeros(2), requires_grad=True)
@@ -232,6 +231,9 @@ class FRPredictHeadWithFlatten(nn.Module):
         bbox_deltas = self.bbox_pred(box_fc)
 
         # 分类
+        support_fc = self.cls_auto_encoder(support_fc)
+        bg_fc = self.cls_auto_encoder(bg_fc)
+        box_fc = self.cls_auto_encoder(box_fc)
         scores, support = self.cls_predictor(support_fc, bg_fc, box_fc)
 
         return scores, bbox_deltas, support
@@ -239,6 +241,7 @@ class FRPredictHeadWithFlatten(nn.Module):
     def cls_predictor(self, support: torch.Tensor, bg: torch.Tensor, boxes_features: torch.Tensor, Woodubry=True):
         r"""
 
+        :param bg:
         :param support: (way * shot, representation_size)
         :param boxes_features: (roi_num, representation_size)
         :param Woodubry:

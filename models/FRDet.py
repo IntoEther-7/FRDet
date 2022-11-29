@@ -259,12 +259,12 @@ class FRDet(GeneralizedRCNN):
         dists = s1.matmul(s2.permute(0, 2, 1))  # (s^2-s)/2, s, s
         assert dists.size(-1) == shot
         frobs = dists.pow(2).sum(-1).sum(-1)
-        return frobs.sum().mul(.1)
+        return frobs.sum()
 
 
 if __name__ == '__main__':
     support = [torch.randn([3, 320, 320]).cuda() for i in range(10)]
     query = [torch.randn([3, 1024, 512]).cuda() for i in range(5)]
-    model = FRDet(way=5, shot=2, roi_size=7, resolution=49, num_classes=5).cuda()
+    model = FRDet(way=5, shot=2, roi_size=7, num_classes=5).cuda()
     model.eval()
     result = model.forward(support, query)

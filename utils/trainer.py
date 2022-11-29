@@ -19,7 +19,7 @@ from utils.dataset import CocoDataset
 
 def trainer(
         # 基础参数
-        way=5, shot=2, query_batch=16, is_cuda=True,
+        way=5, shot=2, query_batch=16, is_cuda=True, lr=2e-02,
         # 设备参数
         random_seed=None, gpu_index=0,
         # 数据集参数
@@ -126,51 +126,71 @@ def trainer(
     else:
         iteration = 1
 
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0005)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=2e-02, momentum=0.9, weight_decay=0.0005)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(max_iteration * 0.1), gamma=0.1)
+
     while iteration - 1 < max_iteration:
-        if iteration < 40000:
-            optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0005)
-        elif iteration < 56000:
-            optimizer = torch.optim.SGD(model.parameters(), lr=0.002, momentum=0.9, weight_decay=0.0005)
-        else:
-            optimizer = torch.optim.SGD(model.parameters(), lr=0.0002, momentum=0.9, weight_decay=0.0005)
 
         # 训练一个轮回
         dataset.initial()
         model.train()
         loss_dict_train = {}
+        loss_dict_val = {}
         dataset.set_mode(is_training=True)
         pbar = tqdm(dataset)
         for index, item in enumerate(pbar):
             loss_this_iteration = {}
-            if iteration > max_iteration:
+            val_loss_this_iteration = {}
+            if iteration == int(max_iteration * 0.7):
+                # optimizer = torch.optim.SGD(model.parameters(), lr=2e-03, momentum=0.9, weight_decay=0.0005)
+                optimizer = torch.optim.Adam(model.parameters(), lr=lr // 10, betas=(0.9, 0.999),
+                                             eps=1e-08, weight_decay=0.0005)
+            elif iteration > max_iteration:
                 break
             support, bg, query, query_anns, cat_ids = item
 
             # 训练
-
             result = model.forward(support, query, bg, targets=query_anns)
             losses = 0
 
             for k, v in result.items():
                 losses += v
                 loss_this_iteration.update({k: float(v)})
+            losses = losses / len(result)
             loss_this_iteration = {iteration: loss_this_iteration}
             loss_dict_train.update(loss_this_iteration)
-            postfix = {'iteration': '{}/{}'.format(iteration, max_iteration),
-                       'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
-                       'catIds': cat_ids,
-                       '模式': 'train',
-                       '损失': "%.6f" % float(losses)}
-            pbar.set_postfix(postfix)
-            if torch.isnan(losses).any():
+
+            if torch.isnan(losses).any() or torch.isinf(losses).any():
                 print('梯度炸了!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 sys.exit(0)
             optimizer.zero_grad()
             losses.backward()
             optimizer.step()
+            scheduler.step()
+
+            # 验证
+            support, bg, query, query_anns, cat_ids = dataset.get_val(random.randint(1, len(dataset.val_iteration)) - 1)
+            result = model.forward(support, query, bg, targets=query_anns)
+            val_losses = 0
+            for k, v in result.items():
+                val_losses += v
+                val_loss_this_iteration.update({k: float(v)})
+            val_losses = val_losses / len(result)
+            loss_this_epoch = {index + 1: val_loss_this_iteration}
+            loss_dict_val.update(loss_this_epoch)
+
+            # 信息展示
+            postfix = {'iteration': '{}/{}'.format(iteration, max_iteration),
+                       'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
+                       'catIds': cat_ids,
+                       '模式': 'train',
+                       'train_loss': "%.6f" % float(losses),
+                       'val_loss': "%.6f" % float(val_losses)}
+            pbar.set_postfix(postfix)
 
             # 保存loss与权重
-            if (iteration) % 100 == 0:  # 记得改
+            if iteration % 10 == 0:  # 记得改
                 with open(save_train_loss, 'r') as f:
                     tmp_loss_dict = json.load(f)
                 with open(save_train_loss, 'w') as f:
@@ -179,35 +199,12 @@ def trainer(
                     json.dump(tmp_loss_dict, f)
                 torch.save({'models': model.state_dict()},
                            os.path.join(save_weights, 'FRDet_{}.pth'.format(iteration)))
-            iteration += 1
 
-        # 验证一个轮回
-        # dataset.set_mode(is_training=False)
-        # pbar = tqdm(dataset)
-        # loss_dict_val = {}
-        # for index, item in enumerate(pbar):
-        #     loss_this_epoch = {}
-        #     support, bg, query, query_anns, cat_ids = item
-        #     # 训练
-        #     result = model.forward(support, query, bg, targets=query_anns)
-        #     losses = 0
-        #     for k, v in result.items():
-        #         losses += v
-        #         loss_this_epoch.update({k: float(v)})
-        #     loss_this_epoch = {index + 1: loss_this_epoch}
-        #     loss_dict_val.update(loss_this_epoch)
-        #
-        #     postfix = {'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
-        #                'catIds': cat_ids,
-        #                '模式': 'val',
-        #                '损失': "%.6f" % float(losses)}
-        #     pbar.set_postfix(postfix)
-        #
-        #     # 保存loss
-        #     if (index + 1) % 100 == 0:  # 记得改
-        #         with open(save_val_loss, 'r') as f:
-        #             tmp_loss_dict = json.load(f)
-        #         with open(save_val_loss, 'w') as f:
-        #             tmp_loss_dict.update(loss_dict_val)
-        #             loss_dict_val = {}
-        #             json.dump(tmp_loss_dict, f)
+                with open(save_val_loss, 'r') as f:
+                    tmp_loss_dict = json.load(f)
+                with open(save_val_loss, 'w') as f:
+                    tmp_loss_dict.update(loss_dict_val)
+                    loss_dict_val = {}
+                    json.dump(tmp_loss_dict, f)
+
+            iteration += 1
