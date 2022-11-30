@@ -11,7 +11,7 @@ from torchvision.models.detection.roi_heads import RoIHeads, maskrcnn_loss, mask
 from torch.nn import functional as F
 from torchvision.models.detection import _utils as det_utils
 
-from models.FRHead import FRPredictHead
+from models.FRHead import FRPredictHead, FRPredictHeadWithFlatten
 
 
 class ModifiedRoIHeads(RoIHeads):
@@ -68,12 +68,13 @@ class ModifiedRoIHeads(RoIHeads):
 
         # support, query 送入fc6, fc7
         box_fc = self.box_head(box_features)  # (roi数, 1024?)
-        support = self.box_head(support)  # (way * shot, 1024)
-        bg = self.box_head(bg)  # (way * shot, 1024)
+        if isinstance(self.box_head, FRPredictHeadWithFlatten):
+            support = self.box_head(support)  # (way * shot, 1024)
+            bg = self.box_head(bg)  # (way * shot, 1024)
 
         # 送入head
         class_logits, box_regression, support = self.box_predictor.forward(support, bg, box_features,
-                                                                           box_fc)  # type: FRPredictHead
+                                                                           box_fc)
 
         result: List[Dict[str, torch.Tensor]] = []
         losses = {}

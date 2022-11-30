@@ -146,7 +146,8 @@ class FRDet(GeneralizedRCNN):
             Woodubry = True
         if box_predictor is None:
             representation_size = 1024
-            box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, Woodubry)
+            # box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, dropout_rate=0.3)
+            box_predictor = FRPredictHead(way, shot, representation_size, num_classes, Woodubry)
         roi_heads = ModifiedRoIHeads(
             # Box
             box_roi_pool, box_head, box_predictor,
