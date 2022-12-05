@@ -13,8 +13,8 @@ img_path = 'train2017'
 
 
 def way_shot_train(way, shot):
-    lr = 2e-04
-    save_root = '/data/chenzh/FRDet/flatten_model/result_coco_r50_{}way_{}shot_lr{}'.format(way, shot, lr)
+    lr = 2e-06
+    save_root = '/data/chenzh/FRDet/not_flatten_model/result_coco_r50_{}way_{}shot_lr{}'.format(way, shot, lr)
     trainer(
         # 基础参数
         way=way, shot=shot, query_batch=16, is_cuda=True, lr=lr,

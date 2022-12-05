@@ -11,12 +11,15 @@ import random
 
 import torch
 from PIL import Image, ImageDraw
+from PIL import ImageFont
 from torchvision.transforms import transforms
 from tqdm import tqdm
 
 from models.FRDet import FRDet
 
 from utils.dataset import CocoDataset
+
+ttf = ImageFont.load_default()
 
 
 def tester(
@@ -64,7 +67,7 @@ def tester(
 
     # 生成数据集
     dataset = CocoDataset(root=root, ann_path=json_path, img_path=img_path,
-                       way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
+                          way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
 
     # 模型
     if model is None:
@@ -72,15 +75,15 @@ def tester(
             # box_predictor params
             way, shot, roi_size=7, num_classes=way + 1,
             # backbone
-            backbone_name='resnet50', pretrained=True,
-            returned_layers=None, trainable_layers=3,
+            backbone_name='resnet50', pretrained=False,
+            returned_layers=None, trainable_layers=4,
             # transform parameters
             min_size=600, max_size=1000,
             image_mean=None, image_std=None,
             # RPN parameters
             rpn_anchor_generator=None, rpn_head=None,
             rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=6000,
-            rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=500,
+            rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=1000,
             rpn_nms_thresh=0.7,
             rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
             rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
@@ -130,6 +133,13 @@ def tester(
 
 
 def test_iteration(dataset, model, save_images):
+    r"""
+    对训练集或测试集, 测试一次
+    :param dataset:
+    :param model:
+    :param save_images:
+    :return:
+    """
     pbar = tqdm(dataset)
     predictions = []
     for index, item in enumerate(pbar):
@@ -138,11 +148,19 @@ def test_iteration(dataset, model, save_images):
         postfix = {'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
                    'catIds': cat_ids}
         pbar.set_postfix(postfix)
-        predictions.append(result_process(dataset, result, query_anns, save_images))
+        predictions.extend(result_process(dataset, result, query_anns, save_images, cat_ids))
     return predictions
 
 
-def result_process(dataset: CocoDataset, result, query_anns, save_images):
+def result_process(dataset: CocoDataset, result, query_anns, save_images, cat_ids):
+    r"""
+    对结果进行后处理
+    :param dataset:
+    :param result:
+    :param query_anns:
+    :param save_images:
+    :return:
+    """
     prediction_list = []
     for prediction, gt in zip(result, query_anns):
         image_id = gt['image_id'][0]
@@ -151,18 +169,22 @@ def result_process(dataset: CocoDataset, result, query_anns, save_images):
         save_path = os.path.join(save_images, file_name)
         img = Image.open(ori_path).convert('RGB')
         img_draw = ImageDraw.ImageDraw(img)
-        for gt_box in gt['boxes']:
+        for gt_box, gt_labels in zip(gt['boxes'], gt['category_id']):
             x1, y1, x2, y2 = gt_box.tolist()
             img_draw.rectangle(((x1, y1), (x2, y2)), fill=None, outline='blue', width=1)
+            img_draw.text((x1, y1), str(gt_labels), font=ttf, fill=(255, 0, 0))
         for bbox, score, label in zip(prediction['boxes'], prediction['scores'], prediction['labels']):
             bbox = bbox.tolist()
             x1, y1, x2, y2 = bbox
+            w = x2 - x1
+            h = y2 - y1
             img_draw.rectangle(((x1, y1), (x2, y2)), fill=None, outline='red', width=1)
+            img_draw.text((x1, y1), '{:.2f}|{}'.format(float(score), cat_ids[int(label) - 1]), font=ttf, fill=(255, 0, 0))
             prediction_list.append({
                 "image_id": image_id,
-                "bbox": bbox,
+                "bbox": [x1, y1, w, h],
                 "score": float(score),
-                "category_id": int(label)
+                "category_id": cat_ids[int(label) - 1]
             })
         save_folder = os.path.split(save_path)[0]
         if not os.path.exists(save_folder):

@@ -108,7 +108,7 @@ class FRDet(GeneralizedRCNN):
 
         # RPN
         if rpn_anchor_generator is None:
-            anchor_sizes = ((32, 64, 128, 256, 512),)
+            anchor_sizes = ((64, 128, 256, 512),)
             aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
             rpn_anchor_generator = AnchorGenerator(
                 anchor_sizes, aspect_ratios
@@ -227,7 +227,7 @@ class FRDet(GeneralizedRCNN):
         losses = {}
         losses.update(detector_losses)
         losses.update(proposal_losses)
-        losses.update({'aux_loss': aux_loss})
+        losses.update({'loss_aux': aux_loss})
 
         if torch.jit.is_scripting():
             if not self._has_warned:

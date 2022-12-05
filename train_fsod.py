@@ -13,8 +13,8 @@ img_path = 'images'
 
 
 def way_shot_train(way, shot):
-    lr = 2e-04
-    save_root = '/data/chenzh/FRDet/flatten_model/result_fsod_r50_{}way_{}shot_lr{}'.format(way, shot, lr)
+    lr = 2e-06
+    save_root = '/data/chenzh/FRDet/not_flatten_model/result_fsod_r50_{}way_{}shot_lr{}'.format(way, shot, lr)
     trainer(
         # 基础参数
         way=way, shot=shot, query_batch=16, is_cuda=True, lr=lr,
@@ -27,7 +27,7 @@ def way_shot_train(way, shot):
         # 模型
         model=None,
         # 训练轮数
-        max_epoch=10,
+        max_epoch=20,
         # 继续训练参数
         continue_epoch=None, continue_iteration=None, continue_weight=None,
         # 保存相关的参数

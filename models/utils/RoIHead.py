@@ -68,7 +68,7 @@ class ModifiedRoIHeads(RoIHeads):
 
         # support, query 送入fc6, fc7
         box_fc = self.box_head(box_features)  # (roi数, 1024?)
-        if isinstance(self.box_head, FRPredictHeadWithFlatten):
+        if isinstance(self.box_predictor, FRPredictHeadWithFlatten):
             support = self.box_head(support)  # (way * shot, 1024)
             bg = self.box_head(bg)  # (way * shot, 1024)
 

@@ -31,7 +31,9 @@ def trainer(
         # 继续训练, 如果没有seed可能很难完美续上之前的训练, 不过整个流程随机, 可能也可以
         continue_epoch=None, continue_iteration=None, continue_weight=None,
         # 保存相关的参数
-        save_root=None
+        save_root=None,
+        # loss权重
+        loss_weights=None
 ):
     r"""
 
@@ -51,12 +53,16 @@ def trainer(
     :return:
     """
     # 检查参数
+    if loss_weights is None:
+        loss_weights = {'loss_classifier': 0.995, 'loss_box_reg': 0.005,
+                        'loss_objectness': 0.995, 'loss_rpn_box_reg': 0.005,
+                        'loss_attention': 0.95, 'loss_aux': 0.05}
     assert root is not None, "root is None"
     assert json_path is not None, "json_path is none"
     assert img_path is not None, "img_path is none"
-    assert (continue_iteration is None and continue_weight is None) \
-           or (continue_iteration is not None and continue_weight is not None), \
-        "continue_iteration and continue_weight should be all None, or all not None"
+    assert (continue_iteration is None and continue_epoch is None) \
+           or (continue_iteration is not None and continue_epoch is not None), \
+        "continue_iteration and continue_epoch should be all None, or all not None"
     # 设置
     torch.set_printoptions(sci_mode=False)
     if random_seed is not None:
@@ -76,7 +82,7 @@ def trainer(
             way, shot, roi_size=7, num_classes=way + 1,
             # backbone
             backbone_name='resnet50', pretrained=False,
-            returned_layers=None, trainable_layers=3,
+            returned_layers=None, trainable_layers=4,
             # transform parameters
             min_size=600, max_size=1000,
             image_mean=None, image_std=None,
@@ -115,9 +121,11 @@ def trainer(
                                        'FRDet_{}_{}.pth'.format(continue_epoch, continue_iteration))
         weight = torch.load(continue_weight)
         model.load_state_dict(weight['models'])
+        continue_done = False
     else:
         continue_epoch = 0
         continue_iteration = 0
+        continue_done = True
 
     # optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0005)
 
@@ -125,11 +133,12 @@ def trainer(
     warm_up_start_lr = lr / 10
     warm_up_end_lr = lr
     delta = (warm_up_end_lr - warm_up_start_lr) / (warm_up_epoch * len(dataset))
+    lr_this_iteration = warm_up_start_lr
 
     fine_epoch = int(max_epoch * 0.7)
-
+    val_losses = 0
     for epoch in range(max_epoch):
-        if epoch + 1 < continue_epoch:
+        if epoch + 1 < continue_epoch and continue_done is False:
             continue
 
         save_train_loss = os.path.join(save_results, 'train_loss_{}.json'.format(epoch + 1))
@@ -152,19 +161,24 @@ def trainer(
         for index, item in enumerate(pbar):
 
             # warm up
-            if epoch + 1 < warm_up_epoch:
-                lr_this_iteration = warm_up_start_lr + delta
+            if epoch + 1 <= warm_up_epoch:
+                lr_this_iteration += delta
                 optimizer = torch.optim.SGD(model.parameters(), lr=lr_this_iteration, momentum=0.9, weight_decay=0.0005)
-            elif epoch + 1 == warm_up_epoch:
+            elif epoch + 1 <= fine_epoch:
                 lr_this_iteration = lr
                 optimizer = torch.optim.SGD(model.parameters(), lr=lr_this_iteration, momentum=0.9, weight_decay=0.0005)
-            elif epoch == fine_epoch:
+            else:
                 lr_this_iteration = lr / 10
                 optimizer = torch.optim.SGD(model.parameters(), lr=lr_this_iteration, momentum=0.9, weight_decay=0.0005)
 
+            # lr_this_iteration = lr / 10
+            # optimizer = torch.optim.SGD(model.parameters(), lr=lr_this_iteration, momentum=0.9, weight_decay=0.0005)
+
             iteration = index + 1
-            if iteration < continue_iteration:
+            if iteration < continue_iteration and continue_done is False:
                 continue
+            elif iteration == continue_iteration:
+                continue_done = True
             loss_this_iteration = {}
             val_loss_this_iteration = {}
             support, bg, query, query_anns, cat_ids = item
@@ -173,10 +187,14 @@ def trainer(
             result = model.forward(support, query, bg, targets=query_anns)
             losses = 0
 
+            sum_weights = 0
             for k, v in result.items():
-                losses += v
+                w = loss_weights[k]
+                losses += v * w
+                sum_weights += w
                 loss_this_iteration.update({k: float(v)})
-            losses = losses / len(result)
+            tqdm.write('{:2} / {:3} / {:.6f} / {}'.format(epoch + 1, iteration, (float(losses)), result))
+            losses = losses / sum_weights
             loss_this_iteration = {iteration: loss_this_iteration}
             loss_dict_train.update(loss_this_iteration)
 
@@ -193,30 +211,28 @@ def trainer(
                     random.randint(1, len(dataset.val_iteration)) - 1)
                 result = model.forward(support, query, bg, targets=query_anns)
                 val_losses = 0
+                sum_weights = 0
                 for k, v in result.items():
-                    val_losses += v
+                    w = loss_weights[k]
+                    val_losses += v * w
+                    sum_weights += w
                     val_loss_this_iteration.update({k: float(v)})
-                val_losses = val_losses / len(result)
+                val_losses = val_losses / sum_weights
                 loss_this_epoch = {index + 1: val_loss_this_iteration}
                 loss_dict_val.update(loss_this_epoch)
                 # 信息展示
-                postfix = {'epoch': '{:2}/{:2}'.format(epoch + 1, max_epoch),
-                           'mission': '{:4}/{:4}'.format(index + 1, len(pbar)),
-                           'catIds': cat_ids,
-                           '模式': 'train',
-                           'train_loss': "%.6f" % float(losses),
-                           'val_loss': "%.6f" % float(val_losses)}
-            else:
-                # 信息展示
-                postfix = {'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
-                           'catIds': cat_ids,
-                           '模式': 'train',
-                           'train_loss': "%.6f" % float(losses)}
+            postfix = {'epoch': '{:2}/{:2}'.format(epoch + 1, max_epoch),
+                       'mission': '{:4}/{:4}'.format(index + 1, len(pbar)),
+                       'catIds': cat_ids,
+                       '模式': 'train',
+                       'lr': optimizer.state_dict()['param_groups'][0]['lr'],
+                       'train_loss': "%.6f" % float(losses),
+                       'val_loss': "%.6f" % float(val_losses)}
 
             pbar.set_postfix(postfix)
 
             # 保存loss与权重
-            if iteration % 100 == 0:  # 记得改
+            if iteration % 100 == 0 or (index + 1) == len(dataset):  # 记得改
                 with open(save_train_loss, 'r') as f:
                     tmp_loss_dict = json.load(f)
                 with open(save_train_loss, 'w') as f:
@@ -234,5 +250,3 @@ def trainer(
                     json.dump(tmp_loss_dict, f)
 
             iteration += 1
-
-        scheduler.step()

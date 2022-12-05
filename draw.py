@@ -43,11 +43,11 @@ if __name__ == '__main__':
         val_loss_iteration_list.append(loss_this_iteration / len(val_statistics_loss))
     val_statistics_loss.update({'loss_sum': val_loss_iteration_list})
     for k, v in statistics_loss.items():
-        epoch = 400  # 处理
+        epoch = 100  # 处理
         v = [np.array(v[i * epoch:(i + 1) * epoch]).mean() for i in range(len(v) // epoch)]  # 处理
         val_v = val_statistics_loss[k]
         val_v = [np.array(val_v[i * epoch:(i + 1) * epoch]).mean() for i in range(len(val_v) // epoch)]  # 处理
-        fig = plt.figure(figsize=(12, 6.75), dpi=320.)
+        fig = plt.figure(figsize=(12, 3), dpi=320.)
         plt.plot(v, linewidth=1)
         plt.plot(val_v, linewidth=2)
         plt.legend('train_loss, val_loss')
