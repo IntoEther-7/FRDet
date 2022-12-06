@@ -13,10 +13,10 @@ from tqdm import tqdm
 
 # lr_list = [2e-04, 2e-05, 2e-06]
 # lw_list = [0, 1]
-lr_list = [2e-02]
+lr_list = [2e-01]
 lw_list = [0]
 
-max_epoch = 140
+max_epoch = 7
 
 
 def epoch_loss_process(loss_dict: dict):
@@ -102,6 +102,6 @@ def draw(root):
 if __name__ == '__main__':
     for lr in lr_list:
         for lw in lw_list:
-            root = 'result/not_flatten_model_loss_weight_{}/result_voc_r50_{}way_{}shot_lr{}/results' \
+            root = 'result/not_flatten_model_loss_weight_{}/result_fsod_r50_{}way_{}shot_lr{}/results' \
                 .format(lw, 2, 5, lr)
             draw(root=root)

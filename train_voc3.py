@@ -40,6 +40,30 @@ loss_weights6 = {'loss_classifier': 0.9995, 'loss_box_reg': 0.0005,
 def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index):
     save_root = '/data/chenzh/FRDet/not_flatten_model_loss_weight_{}/result_voc_r50_{}way_{}shot_lr{}' \
         .format(loss_weights_index, way, shot, lr)
+    model = FRDet(
+        # box_predictor params
+        way, shot, roi_size=7, num_classes=way + 1,
+        # backbone
+        backbone_name='resnet18', pretrained=True,
+        returned_layers=None, trainable_layers=3,
+        # transform parameters
+        min_size=600, max_size=1000,
+        image_mean=None, image_std=None,
+        # RPN parameters
+        rpn_anchor_generator=None, rpn_head=None,
+        rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=6000,
+        rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=500,
+        rpn_nms_thresh=0.7,
+        rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
+        rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
+        rpn_score_thresh=0.0,
+        # Box parameters
+        box_roi_pool=None, box_head=None, box_predictor=None,
+        box_score_thresh=0.05, box_nms_thresh=0.3, box_detections_per_img=100,
+        box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,
+        box_batch_size_per_image=100, box_positive_fraction=0.25,
+        bbox_reg_weights=(10., 10., 5., 5.)
+    )
     trainer(
         # 基础参数
         way=way, shot=shot, query_batch=16, is_cuda=True, lr=lr,
@@ -50,7 +74,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index):
         json_path=json_path,
         img_path=img_path,
         # 模型
-        model=None,
+        model=model,
         # 训练轮数
         max_epoch=200,
         # 继续训练参数
@@ -106,5 +130,5 @@ def train4():
 
 
 if __name__ == '__main__':
-    train0()
-
+    # train0()
+    way_shot_train(2, 5, 2e-03, loss_weights0, 1, 0)

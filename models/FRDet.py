@@ -260,7 +260,7 @@ class FRDet(GeneralizedRCNN):
         dists = s1.matmul(s2.permute(0, 2, 1))  # (s^2-s)/2, s, s
         assert dists.size(-1) == shot
         frobs = dists.pow(2).sum(-1).sum(-1)
-        return frobs.sum()
+        return frobs.sum().mul(0.1)
 
 
 if __name__ == '__main__':

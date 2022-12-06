@@ -186,14 +186,16 @@ def trainer(
             # 训练
             result = model.forward(support, query, bg, targets=query_anns)
             losses = 0
+            l_sum = 0
 
             sum_weights = 0
             for k, v in result.items():
                 w = loss_weights[k]
+                l_sum += v
                 losses += v * w
                 sum_weights += w
                 loss_this_iteration.update({k: float(v)})
-            tqdm.write('{:2} / {:3} / {:.6f} / {}'.format(epoch + 1, iteration, (float(losses)), result))
+            tqdm.write('{:2} / {:3} / {:.6f} / {}'.format(epoch + 1, iteration, (float(l_sum)), result))
             losses = losses / sum_weights
             loss_this_iteration = {iteration: loss_this_iteration}
             loss_dict_train.update(loss_this_iteration)
@@ -211,13 +213,9 @@ def trainer(
                     random.randint(1, len(dataset.val_iteration)) - 1)
                 result = model.forward(support, query, bg, targets=query_anns)
                 val_losses = 0
-                sum_weights = 0
                 for k, v in result.items():
-                    w = loss_weights[k]
-                    val_losses += v * w
-                    sum_weights += w
+                    val_losses += v
                     val_loss_this_iteration.update({k: float(v)})
-                val_losses = val_losses / sum_weights
                 loss_this_epoch = {index + 1: val_loss_this_iteration}
                 loss_dict_val.update(loss_this_epoch)
                 # 信息展示
@@ -226,7 +224,7 @@ def trainer(
                        'catIds': cat_ids,
                        '模式': 'train',
                        'lr': optimizer.state_dict()['param_groups'][0]['lr'],
-                       'train_loss': "%.6f" % float(losses),
+                       'train_loss': "%.6f" % float(l_sum),
                        'val_loss': "%.6f" % float(val_losses)}
 
             pbar.set_postfix(postfix)
