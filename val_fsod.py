@@ -13,7 +13,7 @@ torch.set_printoptions(sci_mode=False)
 root = '../FRNOD/datasets/fsod'
 json_path = 'annotations/fsod_train.json'
 img_path = 'images'
-continue_weight = 'FRDet_7_100.pth'
+continue_weight = 'FRDet_28_100.pth'
 
 def way_shot_test(way, shot, lr, index):
     model = FRDet(
@@ -60,4 +60,4 @@ def way_shot_test(way, shot, lr, index):
 
 
 if __name__ == '__main__':
-    way_shot_test(2, 5, 2e-01, 0)
+    way_shot_test(2, 5, 2e-03, 0)

@@ -13,10 +13,10 @@ from tqdm import tqdm
 
 # lr_list = [2e-04, 2e-05, 2e-06]
 # lw_list = [0, 1]
-lr_list = [2e-01]
+lr_list = [2e-03]
 lw_list = [0]
 
-max_epoch = 7
+max_epoch = 27
 
 
 def epoch_loss_process(loss_dict: dict):

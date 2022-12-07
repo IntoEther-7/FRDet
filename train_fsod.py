@@ -6,7 +6,7 @@
 import torch
 
 from models.FRDet import FRDet
-from utils.trainer import trainer
+from utils.trainer_without_loss_weight import trainer
 
 torch.set_printoptions(sci_mode=False)
 root = '../FRNOD/datasets/fsod'
@@ -126,4 +126,4 @@ def train4():
 if __name__ == '__main__':
     # train0()
     # way_shot_train(2, 5, 2e-01, loss_weights0, 0, 0)
-    way_shot_train(2, 5, 2e-03, loss_weights0, 1, 0)
+    way_shot_train(2, 5, 2e-03, loss_weights0, 0, 0)

@@ -83,7 +83,7 @@ class ModifiedRoIHeads(RoIHeads):
             loss_classifier, loss_box_reg = fastrcnn_loss(
                 class_logits, box_regression, labels, regression_targets)
             losses = {
-                "loss_classifier": loss_classifier,
+                "loss_classifier": loss_classifier.mul(0.8),
                 "loss_box_reg": loss_box_reg
             }
         else:

@@ -14,7 +14,7 @@ torch.set_printoptions(sci_mode=False)
 root = '../FRNOD/datasets/voc/VOCdevkit/VOC2012'
 json_path = 'cocoformatJson/voc_2012_train.json'
 img_path = 'JPEGImages'
-continue_weight = 'FRDet_60_100.pth'
+continue_weight = 'FRDet_36_100.pth'
 
 
 def way_shot_test(way, shot, lr, index):
@@ -63,4 +63,4 @@ def way_shot_test(way, shot, lr, index):
 
 
 if __name__ == '__main__':
-    way_shot_test(2, 5, 2e-01, 0)
+    way_shot_test(2, 5, 2e-03, 0)
