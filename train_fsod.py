@@ -2,6 +2,7 @@
 # PRODUCT: PyCharm
 # AUTHOR: 17795
 # TIME: 2022-11-17 18:54
+import random
 
 import torch
 
@@ -30,7 +31,7 @@ loss_weights4 = {'loss_classifier': 0.99995, 'loss_box_reg': 0.00005,
 
 
 def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index):
-    save_root = '/data/chenzh/FRDet/not_flatten_model_loss_weight_{}/result_fsod_r50_{}way_{}shot_lr{}' \
+    save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_fsod_r50_{}way_{}shot_lr{}' \
         .format(loss_weights_index, way, shot, lr)
     model = FRDet(
         # box_predictor params
@@ -126,4 +127,5 @@ def train4():
 if __name__ == '__main__':
     # train0()
     # way_shot_train(2, 5, 2e-01, loss_weights0, 0, 0)
-    way_shot_train(2, 5, 2e-03, loss_weights0, 0, 0)
+    random.seed(1024)
+    way_shot_train(2, 5, 2e-03, loss_weights0, 1, 20221208)

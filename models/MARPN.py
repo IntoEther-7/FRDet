@@ -89,8 +89,8 @@ class MultiplyAttentionRPN(RegionProposalNetwork):
             features_l.append(torch.stack(f_list, dim=0))
         features = features_l
         loss_attention = loss_attention / len(features)
-        if isinstance(loss_attention, torch.Tensor):
-            loss_attention = loss_attention.mul(0.1)
+        # if isinstance(loss_attention, torch.Tensor):
+        #     loss_attention = loss_attention.mul(0.1)
 
         objectness, pred_bbox_deltas = self.head.forward(features)
         anchors = self.anchor_generator(images, features)
