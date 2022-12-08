@@ -141,9 +141,9 @@ class FRDet(GeneralizedRCNN):
                 out_channels * resolution ** 2,
                 representation_size)
         if channels < way * resolution:
-            Woodubry = False
-        else:
             Woodubry = True
+        else:
+            Woodubry = False
         if box_predictor is None:
             representation_size = 1024
             # box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, dropout_rate=0.3)
@@ -260,7 +260,7 @@ class FRDet(GeneralizedRCNN):
         dists = s1.matmul(s2.permute(0, 2, 1))  # (s^2-s)/2, s, s
         assert dists.size(-1) == shot
         frobs = dists.pow(2).sum(-1).sum(-1)
-        return frobs.sum().mul(0.1)
+        return frobs.sum()
 
 
 if __name__ == '__main__':

@@ -188,15 +188,15 @@ def trainer(
             losses = 0
             l_sum = 0
 
-            sum_weights = 0
+            # sum_weights = 0
             for k, v in result.items():
                 w = loss_weights[k]
                 l_sum += v
                 losses += v * w
-                sum_weights += w
+                # sum_weights += w
                 loss_this_iteration.update({k: float(v)})
             tqdm.write('{:2} / {:3} / {:.6f} / {}'.format(epoch + 1, iteration, (float(l_sum)), result))
-            losses = losses / sum_weights
+            # losses = losses / sum_weights
             loss_this_iteration = {iteration: loss_this_iteration}
             loss_dict_train.update(loss_this_iteration)
 

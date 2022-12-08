@@ -16,7 +16,7 @@ img_path = 'images'
 
 
 def way_shot_test(way, shot):
-    save_root = '/data/chenzh/FRDet/result_fsod_{}way_{}shot'.format(way, shot)
+    save_root = 'rrrrrrrrrrr'
     continue_weight = 'FRDet_60000.pth'
 
     model = FRDet(
@@ -62,7 +62,4 @@ def way_shot_test(way, shot):
 
 
 if __name__ == '__main__':
-    way_shot_test(1, 1)
-    way_shot_test(2, 1)
-    way_shot_test(2, 5)
-    way_shot_test(5, 5)
+    way_shot_test(5, 2)

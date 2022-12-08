@@ -12,7 +12,8 @@ from matplotlib import pyplot as plt
 # 每个mission的loss
 from tqdm import tqdm
 
-root = 'result/flatten_model_r50/result_voc_r50_2way_1shot_lr0.0002/results'
+# root = 'result/flatten_model_r50/result_voc_r50_2way_1shot_lr0.0002/results'
+root = 'test_training/results'
 loss_path = os.path.join(root, 'train_loss.json')
 val_loss_path = os.path.join(root, 'val_loss.json')
 

@@ -21,6 +21,7 @@ loss_weights1 = {'loss_classifier': 0.1, 'loss_box_reg': 1,
                  'loss_attention': 1, 'loss_aux': 0.1}
 
 
+
 def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index):
     save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_fsod_r50_{}way_{}shot_lr{}' \
         .format(loss_weights_index, way, shot, lr)
@@ -45,9 +46,10 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index):
         box_roi_pool=None, box_head=None, box_predictor=None,
         box_score_thresh=0.05, box_nms_thresh=0.3, box_detections_per_img=100,
         box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,
-        box_batch_size_per_image=100, box_positive_fraction=0.25,
+        box_batch_size_per_image=512, box_positive_fraction=0.25,
         bbox_reg_weights=(10., 10., 5., 5.)
     )
+
 
     trainer(
         # 基础参数
@@ -80,18 +82,10 @@ def train0():
     way_shot_train(2, 5, 2e-06, loss_weights0, 1, 0)
 
 
-def train1():
-    # way_shot_train(2, 5, 2e-01, loss_weights1, 1, 1)
-    way_shot_train(2, 5, 2e-02, loss_weights1, 1, 1)
-    way_shot_train(2, 5, 2e-03, loss_weights1, 1, 1)
-    way_shot_train(2, 5, 2e-04, loss_weights1, 1, 1)
-    way_shot_train(2, 5, 2e-05, loss_weights1, 1, 1)
-    way_shot_train(2, 5, 2e-06, loss_weights1, 1, 1)
-
-
 
 if __name__ == '__main__':
     # train0()
     # way_shot_train(2, 5, 2e-01, loss_weights0, 0, 0)
     random.seed(1024)
-    way_shot_train(2, 5, 2e-03, loss_weights0, 1, 20221208)
+    # 20221208 下午四点半
+    way_shot_train(2, 5, 2e-03, loss_weights0, 0, '20221208_减少roi数量')

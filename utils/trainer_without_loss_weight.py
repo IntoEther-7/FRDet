@@ -81,8 +81,8 @@ def trainer(
             # box_predictor params
             way, shot, roi_size=7, num_classes=way + 1,
             # backbone
-            backbone_name='resnet50', pretrained=False,
-            returned_layers=None, trainable_layers=4,
+            backbone_name='resnet18', pretrained=True,
+            returned_layers=None, trainable_layers=3,
             # transform parameters
             min_size=600, max_size=1000,
             image_mean=None, image_std=None,
@@ -185,14 +185,13 @@ def trainer(
             # 训练
             result = model.forward(support, query, bg, targets=query_anns)
             losses = 0
-
+            sum = 0
             for k, v in result.items():
-                # w = loss_weights[k]
-                losses += v
-                # losses += v * w
-                # sum_weights += w
+                w = loss_weights[k]
+                losses += v * w
+                sum += v
                 loss_this_iteration.update({k: float(v)})
-            tqdm.write('{:2} / {:3} / {:.6f} / {}'.format(epoch + 1, iteration, (float(losses)), result))
+            tqdm.write('{:2} / {:3} / {:.6f} / {}'.format(epoch + 1, iteration, (float(sum)), result))
 
             loss_this_iteration = {iteration: loss_this_iteration}
             loss_dict_train.update(loss_this_iteration)
