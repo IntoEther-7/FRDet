@@ -14,7 +14,7 @@ from tqdm import tqdm
 # lr_list = [2e-04, 2e-05, 2e-06]
 # lw_list = [0, 1]
 lr_list = [2e-03]
-lw_list = [0]
+lw_list = ['20221209_减少roi数量']
 
 max_epoch = 27
 
@@ -102,6 +102,6 @@ def draw(root):
 if __name__ == '__main__':
     for lr in lr_list:
         for lw in lw_list:
-            root = 'result/not_flatten_model_loss_weight_{}/result_fsod_r50_{}way_{}shot_lr{}/results' \
+            root = 'result/flatten_model_{}/result_fsod_r50_{}way_{}shot_lr{}/results' \
                 .format(lw, 2, 5, lr)
             draw(root=root)
