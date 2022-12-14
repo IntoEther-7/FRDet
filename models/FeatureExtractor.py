@@ -127,6 +127,6 @@ class FeatureExtractor2(nn.Module):
 
 if __name__ == '__main__':
     x = torch.randn([5, 3, 1024, 512])
-    resnet50 = FeatureExtractor2(backbone_name='resnet50', pretrained=True)
+    resnet50 = FeatureExtractor3(backbone_name='resnet50', pretrained=True)
     result = resnet50.forward(x)
     print()

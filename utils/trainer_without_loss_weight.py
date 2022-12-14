@@ -23,7 +23,7 @@ def trainer(
         # 设备参数
         random_seed=None, gpu_index=0,
         # 数据集参数
-        root=None, json_path=None, img_path=None,
+        root=None, json_path=None, img_path=None, split_cats=None,
         # 模型
         model: FRDet = None,
         # 训练轮数
@@ -73,7 +73,7 @@ def trainer(
 
     # 生成数据集
     dataset = CocoDataset(root=root, ann_path=json_path, img_path=img_path,
-                          way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
+                          way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda, catIds=split_cats)
 
     # 模型
     if model is None:
@@ -81,7 +81,7 @@ def trainer(
             # box_predictor params
             way, shot, roi_size=7, num_classes=way + 1,
             # backbone
-            backbone_name='resnet18', pretrained=True,
+            backbone_name='resnet50', pretrained=True,
             returned_layers=None, trainable_layers=3,
             # transform parameters
             min_size=600, max_size=1000,
@@ -129,11 +129,11 @@ def trainer(
 
     # optimizer = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.0005)
 
-    warm_up_epoch = int(max_epoch * 0.1)
-    warm_up_start_lr = lr / 10
-    warm_up_end_lr = lr
-    delta = (warm_up_end_lr - warm_up_start_lr) / (warm_up_epoch * len(dataset))
-    lr_this_iteration = warm_up_start_lr
+    # warm_up_epoch = int(max_epoch * 0.1)
+    # warm_up_start_lr = lr / 10
+    # warm_up_end_lr = lr
+    # delta = (warm_up_end_lr - warm_up_start_lr) / (warm_up_epoch * len(dataset))
+    # lr_this_iteration = warm_up_start_lr
 
     fine_epoch = int(max_epoch * 0.7)
     val_losses = 0

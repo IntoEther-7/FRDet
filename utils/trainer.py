@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from models.FRDet import FRDet
 
-from utils.dataset import CocoDataset
+from utils.dataset import *
 
 
 def trainer(
@@ -23,7 +23,7 @@ def trainer(
         # 设备参数
         random_seed=None, gpu_index=0,
         # 数据集参数
-        root=None, json_path=None, img_path=None,
+        root=None, json_path=None, img_path=None, split_cats=None,
         # 模型
         model: FRDet = None,
         # 训练轮数
@@ -73,7 +73,7 @@ def trainer(
 
     # 生成数据集
     dataset = CocoDataset(root=root, ann_path=json_path, img_path=img_path,
-                          way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda)
+                          way=way, shot=shot, query_batch=query_batch, is_cuda=is_cuda, catIds=split_cats)
 
     # 模型
     if model is None:

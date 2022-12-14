@@ -23,7 +23,7 @@ loss_weights1 = {'loss_classifier': 0.1, 'loss_box_reg': 1,
 
 
 def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index):
-    save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_fsod_r50_{}way_{}shot_lr{}' \
+    save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_fsod_r18_{}way_{}shot_lr{}' \
         .format(loss_weights_index, way, shot, lr)
     model = FRDet(
         # box_predictor params
@@ -40,7 +40,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index):
         rpn_post_nms_top_n_train=1000, rpn_post_nms_top_n_test=1000,
         rpn_nms_thresh=0.7,
         rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
-        rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
+        rpn_batch_size_per_image=512, rpn_positive_fraction=0.5,
         rpn_score_thresh=0.0,
         # Box parameters
         box_roi_pool=None, box_head=None, box_predictor=None,
@@ -92,4 +92,8 @@ if __name__ == '__main__':
     # 20221208 下午四点半
     # way_shot_train(2, 5, 2e-03, loss_weights0, 0, '20221208_减少roi数量')
     # 20221209 下午两点
-    way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20221208_减少roi数量')
+    # way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20221208_减少roi数量')
+    # 20221211 上午十点
+    # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221210_增加rpn_batch_size_per_image')
+    # 20221213 下午四点
+    way_shot_train(20, 5, 2e-03, loss_weights0, 1, '20221210_增加rpn_batch_size_per_image')

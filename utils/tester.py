@@ -34,7 +34,8 @@ def tester(
         # 权重文件
         continue_weight=None,
         # 保存相关的参数
-        save_root=None
+        save_root=None,
+        save_json=None
 ):
     r"""
 
@@ -104,7 +105,10 @@ def tester(
     save_results = os.path.join(save_root, 'results')
     save_val = os.path.join(save_root, 'validations')
     save_images = os.path.join(save_val, 'predictions')
-    save_json = os.path.join(save_val, 'prediction.json')
+    if save_json is None:
+        save_json = os.path.join(save_val, 'prediction.json')
+    else:
+        save_json = os.path.join(save_val, save_json)
     # 创建文件夹保存此次验证
     if not os.path.exists(save_weights):
         os.makedirs(save_weights)
@@ -179,7 +183,8 @@ def result_process(dataset: CocoDataset, result, query_anns, save_images, cat_id
             w = x2 - x1
             h = y2 - y1
             img_draw.rectangle(((x1, y1), (x2, y2)), fill=None, outline='red', width=1)
-            img_draw.text((x1, y1), '{:.2f}|{}'.format(float(score), cat_ids[int(label) - 1]), font=ttf, fill=(255, 0, 0))
+            img_draw.text((x1, y1), '{:.2f}|{}'.format(float(score), cat_ids[int(label) - 1]), font=ttf,
+                          fill=(255, 0, 0))
             prediction_list.append({
                 "image_id": image_id,
                 "bbox": [x1, y1, w, h],
