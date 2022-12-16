@@ -13,14 +13,14 @@ from torchvision.models.detection.rpn import RPNHead
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
 
-from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten
-from models.FeatureExtractor import FeatureExtractor, FeatureExtractor3
+from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten, FRPredictHead_Simple
+from models.FeatureExtractor import FeatureExtractor, FeatureExtractorOnly
 
 from models.MARPN import MultiplyAttentionRPN
 from models.utils.RoIHead import ModifiedRoIHeads
 
 
-class FRDet_3(GeneralizedRCNN):
+class FRDet_Simple(GeneralizedRCNN):
     def __init__(self,
                  # box_predictor params
                  way, shot, roi_size,
@@ -94,7 +94,7 @@ class FRDet_3(GeneralizedRCNN):
                 raise ValueError("num_classes should not be None when box_predictor "
                                  "is not specified")
 
-        backbone = FeatureExtractor3(backbone_name, pretrained=pretrained, returned_layers=returned_layers,
+        backbone = FeatureExtractorOnly(backbone_name, pretrained=pretrained, returned_layers=returned_layers,
                                     trainable_layers=trainable_layers)
         out_channels = backbone.out_channels
         channels = out_channels
@@ -147,7 +147,7 @@ class FRDet_3(GeneralizedRCNN):
         if box_predictor is None:
             representation_size = 1024
             # box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, dropout_rate=0.3)
-            box_predictor = FRPredictHead(way, shot, representation_size, num_classes, Woodubry, out_channels)
+            box_predictor = FRPredictHead(way, shot, representation_size, num_classes, Woodubry)
         roi_heads = ModifiedRoIHeads(
             # Box
             box_roi_pool, box_head, box_predictor,
@@ -155,7 +155,7 @@ class FRDet_3(GeneralizedRCNN):
             box_batch_size_per_image, box_positive_fraction,
             bbox_reg_weights,
             box_score_thresh, box_nms_thresh, box_detections_per_img)
-        super(FRDet_3, self).__init__(backbone, rpn, roi_heads, transform)
+        super(FRDet_Simple, self).__init__(backbone, rpn, roi_heads, transform)
         self.shot = shot
         self.resolution = roi_size ** 2
         self.roi_size = roi_size
@@ -266,6 +266,6 @@ class FRDet_3(GeneralizedRCNN):
 if __name__ == '__main__':
     support = [torch.randn([3, 320, 320]).cuda() for i in range(10)]
     query = [torch.randn([3, 1024, 512]).cuda() for i in range(5)]
-    model = FRDet_3(way=5, shot=2, roi_size=7, num_classes=5).cuda()
+    model = FRDet_Simple(way=5, shot=2, roi_size=7, num_classes=5).cuda()
     model.eval()
     result = model.forward(support, query)

@@ -58,6 +58,13 @@ class MultiplyAttentionModule(nn.Module):
             loss_attention = None
         return out, loss_attention
 
+    def forward_without_mask(self, support, query):
+        channel_attention = self.CA.forward(support)
+        pixel_attention = F.softmax(self.PA.forward(query), dim=1)
+        fg_attention = pixel_attention[:, :1, :, :]
+        out = query * channel_attention * fg_attention
+        return out
+
     def _generate_mask(self, image: ImageList, target, index):
         mask = torch.zeros(image.tensors[index].shape[1:]).cuda()
         boxes = target[index]['boxes']

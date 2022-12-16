@@ -64,7 +64,7 @@ class FeatureExtractor(nn.Module):
         return out
 
 
-class FeatureExtractor2(nn.Module):
+class FeatureExtractorOnly(nn.Module):
 
     def __init__(self,
                  # fpn backbone
@@ -76,16 +76,16 @@ class FeatureExtractor2(nn.Module):
         :param returned_layers: 返回那一层, [1, 4], 对应着c1-c4层, 返回
         :param trainable_layers: 训练哪几层, 从最后一层往前数
         """
-        super(FeatureExtractor2, self).__init__()
+        super(FeatureExtractorOnly, self).__init__()
         if returned_layers is None:
-            returned_layers = [2, 3, 4]
+            returned_layers = [3]
         self.out_channels = 256
         self.s_scale = 16
 
         self.backbone = resnet_fpn_backbone(backbone_name, pretrained=pretrained, trainable_layers=trainable_layers,
                                             returned_layers=returned_layers)  # (n, 256, x, x)
-        self.inception = Inception(256)
-        self.upsample = nn.UpsamplingBilinear2d(scale_factor=2.)
+        # self.inception = Inception(256)
+        # self.upsample = nn.UpsamplingBilinear2d(scale_factor=2.)
         # self.conv = nn.Sequential(
         #     nn.Conv2d(1280, 1024, kernel_size=1, stride=1, padding=0),
         #     nn.BatchNorm2d(1024),
@@ -97,13 +97,13 @@ class FeatureExtractor2(nn.Module):
         #     nn.BatchNorm2d(256),
         #     nn.LeakyReLU(inplace=True)
         # )
-        self.conv = nn.Sequential(
-            nn.Conv2d(3072, 1024, kernel_size=1, stride=1, padding=0),
-            nn.Conv2d(1024, 256, kernel_size=1, stride=1, padding=0),
-            nn.MaxPool2d(2),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(inplace=True)
-        )
+        # self.conv = nn.Sequential(
+        #     nn.Conv2d(3072, 1024, kernel_size=1, stride=1, padding=0),
+        #     nn.Conv2d(1024, 256, kernel_size=1, stride=1, padding=0),
+        #     nn.MaxPool2d(2),
+        #     nn.BatchNorm2d(256),
+        #     nn.LeakyReLU(inplace=True)
+        # )
 
     def forward(self, x):
         r"""
@@ -112,21 +112,22 @@ class FeatureExtractor2(nn.Module):
         :return: List[Tensor]
         """
         features = self.backbone.forward(x)
-        c2 = features['0']  # 缩小8倍
-        c2 = self.inception.forward(c2)
-        c3 = features['1']  # 缩小16倍
-        c3 = self.upsample(c3)  # 缩小16倍
-        c3 = self.inception.forward(c3)
-        c4 = features['2']  # 缩小32倍
-        c4 = self.upsample(c4)  # 缩小16倍
-        c4 = self.upsample(c4)  # 缩小8倍
-        c4 = self.inception.forward(c4)
-        out = torch.cat([c2, c3, c4], dim=1)
-        out = self.conv(out)
+        out = features['0']  # 缩小8倍
+        # c2 = self.inception.forward(c2)
+        # c3 = features['1']  # 缩小16倍
+        # c3 = self.upsample(c3)  # 缩小16倍
+        # c3 = self.inception.forward(c3)
+        # c4 = features['2']  # 缩小32倍
+        # c4 = self.upsample(c4)  # 缩小16倍
+        # c4 = self.upsample(c4)  # 缩小8倍
+        # c4 = self.inception.forward(c4)
+        # out = torch.cat([c2, c3, c4], dim=1)
+        # out = self.conv(out)
         return out
+
 
 if __name__ == '__main__':
     x = torch.randn([5, 3, 1024, 512])
-    resnet50 = FeatureExtractor3(backbone_name='resnet50', pretrained=True)
+    resnet50 = FeatureExtractorOnly(backbone_name='resnet50', pretrained=True)
     result = resnet50.forward(x)
     print()

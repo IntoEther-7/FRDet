@@ -17,6 +17,10 @@ lr_list = [2e-03]
 lw_list = ['20221213_无监督attention']
 
 max_epoch = 30
+loss_weights无监督attention = {'loss_classifier': 1, 'loss_box_reg': 1,
+                            'loss_objectness': 1, 'loss_rpn_box_reg': 1,
+                            'loss_attention': 0, 'loss_aux': 1,
+                            'loss_sum': 1}
 
 
 def epoch_loss_process(loss_dict: dict):
@@ -28,7 +32,7 @@ def epoch_loss_process(loss_dict: dict):
             if k not in statistics_loss.keys():
                 statistics_loss[k] = []
             statistics_loss[k].append(v)
-            loss_sum_iteration += v
+            loss_sum_iteration += v * loss_weights无监督attention[k]
         # loss_sum_iteration /= len(statistics_loss)
         statistics_loss['loss_sum'].append(loss_sum_iteration)
     for k, v in statistics_loss.items():
@@ -100,8 +104,12 @@ def draw(root):
 
 
 if __name__ == '__main__':
-    for lr in lr_list:
-        for lw in lw_list:
-            root = 'result/not_flatten_model_{}/result_fsod_r18_{}way_{}shot_lr{}/results' \
-                .format(lw, 2, 5, lr)
-            draw(root=root)
+    # for lr in lr_list:
+    #     for lw in lw_list:
+    #         root = 'result/not_flatten_model_{}/result_fsod_r18_{}way_{}shot_lr{}/results' \
+    #             .format(lw, 2, 5, lr)
+    #         draw(root=root)
+    max_epoch = 40
+    draw('result/not_flatten_model_20221215_有监督_voc1/result_voc_r50_2way_5shot_lr0.002/results')
+    draw('result/not_flatten_model_20221215_有监督_voc2/result_voc_r50_2way_5shot_lr0.002/results')
+    draw('result/not_flatten_model_20221215_有监督_voc3/result_voc_r50_2way_5shot_lr0.002/results')

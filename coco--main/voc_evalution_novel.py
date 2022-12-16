@@ -14,10 +14,10 @@ import numpy as np
 import pylab, json
 
 if __name__ == "__main__":
-    gt_path = "../../FRNOD/datasets/fsod/annotations/fsod_train.json"  # 存放真实标签的路径
+    gt_path = "../../FRNOD/datasets/voc/VOCdevkit/VOC2012/cocoformatJson/voc_2012_train.json"  # 存放真实标签的路径
     dt_path = os.path.join('../result',
-                           'not_flatten_model_20221213_无监督attention',
-                           'result_fsod_r18_2way_5shot_lr0.002',
+                           'not_flatten_model_20221211_resnet50',
+                           'result_fsod_r50_2way_5shot_lr0.002',
                            'validations',
                            'prediction.json')  # 存放检测结果的路径
     # dt_path = "my_result.json"  # 存放检测结果的路径
