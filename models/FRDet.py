@@ -13,8 +13,8 @@ from torchvision.models.detection.rpn import RPNHead
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
 
-from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten
-from models.FeatureExtractor import FeatureExtractor
+from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten, FRPredictHead_Simple
+from models.FeatureExtractor import FeatureExtractor, FeatureExtractorOnly
 
 from models.MARPN import MultiplyAttentionRPN
 from models.utils.RoIHead import ModifiedRoIHeads
@@ -94,7 +94,7 @@ class FRDet(GeneralizedRCNN):
                 raise ValueError("num_classes should not be None when box_predictor "
                                  "is not specified")
 
-        backbone = FeatureExtractor(backbone_name, pretrained=pretrained, returned_layers=returned_layers,
+        backbone = FeatureExtractorOnly(backbone_name, pretrained=pretrained, returned_layers=returned_layers,
                                     trainable_layers=trainable_layers)
         out_channels = backbone.out_channels
         channels = out_channels
@@ -147,7 +147,7 @@ class FRDet(GeneralizedRCNN):
         if box_predictor is None:
             representation_size = 1024
             # box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, dropout_rate=0.3)
-            box_predictor = FRPredictHead(way, shot, representation_size, num_classes, Woodubry)
+            box_predictor = FRPredictHead_Simple(way, shot, representation_size, num_classes, Woodubry)
         roi_heads = ModifiedRoIHeads(
             # Box
             box_roi_pool, box_head, box_predictor,

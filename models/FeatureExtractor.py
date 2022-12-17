@@ -80,7 +80,7 @@ class FeatureExtractorOnly(nn.Module):
         if returned_layers is None:
             returned_layers = [3]
         self.out_channels = 256
-        self.s_scale = 16
+        self.s_scale = 8
 
         self.backbone = resnet_fpn_backbone(backbone_name, pretrained=pretrained, trainable_layers=trainable_layers,
                                             returned_layers=returned_layers)  # (n, 256, x, x)

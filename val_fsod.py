@@ -14,7 +14,7 @@ torch.set_printoptions(sci_mode=False)
 root = '../FRNOD/datasets/fsod'
 json_path = 'annotations/fsod_train.json'
 img_path = 'images'
-continue_weight = 'FRDet_30_2811.pth'
+continue_weight = 'FRDet_30_2709.pth'
 
 
 def way_shot_test(way, shot, lr, index):

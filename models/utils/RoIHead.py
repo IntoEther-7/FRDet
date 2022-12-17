@@ -8,8 +8,6 @@ from typing import List, Dict
 import torch
 from torchvision.models.detection.roi_heads import RoIHeads, maskrcnn_loss, maskrcnn_inference, \
     keypointrcnn_loss, keypointrcnn_inference, fastrcnn_loss
-from torch.nn import functional as F
-from torchvision.models.detection import _utils as det_utils
 
 from models.FRHead import FRPredictHead, FRPredictHeadWithFlatten
 
