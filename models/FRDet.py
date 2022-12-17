@@ -9,14 +9,13 @@ from typing import List, Tuple
 import torch
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.generalized_rcnn import GeneralizedRCNN
-from torchvision.models.detection.rpn import RPNHead
+from torchvision.models.detection.rpn import RPNHead, RegionProposalNetwork
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
 
-from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten
-from models.FeatureExtractor import FeatureExtractor
-
-from models.MARPN import MultiplyAttentionRPN
+from models.FRHead import FRBoxHead, FRPredictHead_Simple
+from models.FeatureExtractor import FeatureExtractorOnly
+from models.utils.MultiplyAttentionModule import MultiplyAttentionModule
 from models.utils.RoIHead import ModifiedRoIHeads
 
 
@@ -94,8 +93,8 @@ class FRDet(GeneralizedRCNN):
                 raise ValueError("num_classes should not be None when box_predictor "
                                  "is not specified")
 
-        backbone = FeatureExtractor(backbone_name, pretrained=pretrained, returned_layers=returned_layers,
-                                    trainable_layers=trainable_layers)
+        backbone = FeatureExtractorOnly(backbone_name, pretrained=pretrained, returned_layers=returned_layers,
+                                        trainable_layers=trainable_layers)
         out_channels = backbone.out_channels
         channels = out_channels
 
@@ -115,17 +114,18 @@ class FRDet(GeneralizedRCNN):
             )
         if rpn_head is None:
             rpn_head = RPNHead(
-                out_channels * way, rpn_anchor_generator.num_anchors_per_location()[0]
+                out_channels, rpn_anchor_generator.num_anchors_per_location()[0]
             )
         rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train, testing=rpn_pre_nms_top_n_test)
         rpn_post_nms_top_n = dict(training=rpn_post_nms_top_n_train, testing=rpn_post_nms_top_n_test)
-        rpn: MultiplyAttentionRPN = MultiplyAttentionRPN(
-            way, shot,
+        # rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train // way, testing=rpn_pre_nms_top_n_test // way)
+        # rpn_post_nms_top_n = dict(training=rpn_post_nms_top_n_train // way, testing=rpn_post_nms_top_n_test // way)
+        rpn: RegionProposalNetwork = RegionProposalNetwork(
             rpn_anchor_generator, rpn_head,
             rpn_fg_iou_thresh, rpn_bg_iou_thresh,
             rpn_batch_size_per_image, rpn_positive_fraction,
             rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_nms_thresh,
-            score_thresh=rpn_score_thresh, in_channels=backbone.out_channels, reduction=16
+            score_thresh=rpn_score_thresh
         )
 
         # Head
@@ -147,7 +147,8 @@ class FRDet(GeneralizedRCNN):
         if box_predictor is None:
             representation_size = 1024
             # box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, dropout_rate=0.3)
-            box_predictor = FRPredictHead(way, shot, representation_size, num_classes, Woodubry)
+            # box_predictor = FRPredictHead(way, shot, representation_size, num_classes, Woodubry)
+            box_predictor = FRPredictHead_Simple(way, shot, representation_size, num_classes, Woodubry)
         roi_heads = ModifiedRoIHeads(
             # Box
             box_roi_pool, box_head, box_predictor,
@@ -156,10 +157,12 @@ class FRDet(GeneralizedRCNN):
             bbox_reg_weights,
             box_score_thresh, box_nms_thresh, box_detections_per_img)
         super(FRDet, self).__init__(backbone, rpn, roi_heads, transform)
+        self.way = way
         self.shot = shot
         self.resolution = roi_size ** 2
         self.roi_size = roi_size
         self.support_transform = GeneralizedRCNNTransform(320, 320, image_mean, image_std)
+        self.attention = MultiplyAttentionModule(256, 16)
 
     def forward(self, support, images, bg, targets=None):
         r"""
@@ -169,6 +172,7 @@ class FRDet(GeneralizedRCNN):
         :param targets: [Dict{'boxes': tensor(n, 4), 'labels': tensor(n,)}, 'image_id': int, 'category_id': int, 'id': int]
         :return:
         """
+        targets, targets_way = targets
         # 校验及预处理
         if self.training and targets is None:
             raise ValueError("In training mode, targets should be passed")
@@ -213,11 +217,42 @@ class FRDet(GeneralizedRCNN):
         bg = self.backbone.forward(bg.tensors)  # (way * shot, channels, h, w)
         features = self.backbone.forward(images.tensors)  # (n, channels, h, w)
 
+        _, c, h, w = support.shape
+        support_mean_shot = support.reshape(self.way, self.shot, c, h, w)
+        support_mean_shot = support_mean_shot.mean(1)
+
+        proposals = [[] for i in range(features.shape[0])]
+        proposal_losses = {
+            'loss_objectness': 0,
+            'loss_rpn_box_reg': 0
+        }
+        for s_index, sm in enumerate(support_mean_shot):
+            rpn_features = self.attention.forward_without_mask(torch.unsqueeze(sm, 0), features)
+            rpn_features = OrderedDict([('0', rpn_features)])
+            proposals_branch, proposal_losses_branch = self.rpn.forward(images, rpn_features, targets_way[s_index])
+            if self.training:
+                proposal_losses['loss_objectness'] += proposal_losses_branch['loss_objectness'] / self.way
+                proposal_losses['loss_rpn_box_reg'] += proposal_losses_branch['loss_rpn_box_reg'] / self.way
+            for p_index, p in enumerate(proposals_branch):
+                proposals[p_index].extend(p)
+
+        # p = []
+        # for i in proposals:
+        #     # print(i)
+        #     try:
+        #         p.append(torch.stack(i, dim=0))
+        #     except Exception as e:
+        #         print(i)
+        # proposals = p
+
+        proposals = [torch.stack(i, dim=0) for i in proposals]
+
         if isinstance(features, torch.Tensor):
             features = OrderedDict([('0', features)])
-        proposals, proposal_losses = self.rpn(support, images, features, targets)
+
         detections, detector_losses, support = self.roi_heads.forward(support, bg, features, proposals,
                                                                       images.image_sizes, targets)
+
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 
         aux_loss = {}
@@ -266,6 +301,7 @@ class FRDet(GeneralizedRCNN):
 if __name__ == '__main__':
     support = [torch.randn([3, 320, 320]).cuda() for i in range(10)]
     query = [torch.randn([3, 1024, 512]).cuda() for i in range(5)]
+    bg = [torch.randn([3, 320, 320]).cuda() for i in range(10)]
     model = FRDet(way=5, shot=2, roi_size=7, num_classes=5).cuda()
     model.eval()
-    result = model.forward(support, query)
+    result = model.forward(support, query, bg)

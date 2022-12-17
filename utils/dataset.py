@@ -4,7 +4,6 @@
 # TIME: 2022-11-21 15:52
 import os
 import random
-from copy import deepcopy
 
 import torch
 from PIL import Image
@@ -252,23 +251,23 @@ class CocoDataset(Dataset):
 
     def __getitem__(self, index) -> T_co:
         this_iteration = self.iteration[index]
-        support, bg, query, query_anns = self.id2item(this_iteration)
+        support, bg, query, query_anns, query_anns_way = self.id2item(this_iteration)
         cat_ids = this_iteration['cat_ids']
         if self.is_cuda:
             support = [s.cuda() for s in support]
             bg = [b.cuda() for b in bg]
             query = [q.cuda() for q in query]
-        return support, bg, query, query_anns, cat_ids
+        return support, bg, query, (query_anns, query_anns_way), cat_ids
 
     def get_val(self, index) -> T_co:
         this_iteration = self.val_iteration[index]
-        support, bg, query, query_anns = self.id2item(this_iteration)
+        support, bg, query, query_anns, query_anns_way = self.id2item(this_iteration)
         cat_ids = this_iteration['cat_ids']
         if self.is_cuda:
             support = [s.cuda() for s in support]
             bg = [b.cuda() for b in bg]
             query = [q.cuda() for q in query]
-        return support, bg, query, query_anns, cat_ids
+        return support, bg, query, (query_anns, query_anns_way), cat_ids
 
     def __len__(self):
         return len(self.iteration)
@@ -362,13 +361,20 @@ class CocoDataset(Dataset):
         query_labels = [self.coco.loadAnns(ids) for ids in query_label_ids]
         # [Dict{'boxes': tensor(n, 4), 'labels': tensor(n,)}, 'image_id': int, 'category_id': list(int), 'id': int]
         query_anns = []
-        continue_flag = False
+        query_anns_group_by_way = [[] for i in cat_ids]
+
         for label_this_img in query_labels:
             boxes = []
             labels = []
             category_id = []
             ann_ids = []
             image_id = []
+            # way
+            boxes_way = [[] for i in cat_ids]
+            labels_way = [[] for i in cat_ids]
+            category_id_way = [[] for i in cat_ids]
+            ann_ids_way = [[] for i in cat_ids]
+            image_id_way = [[] for i in cat_ids]
             for ann in label_this_img:
                 # 单个ann
                 if ann['category_id'] in cat_ids:
@@ -382,18 +388,40 @@ class CocoDataset(Dataset):
                     labels.append(cat_ids.index(ann['category_id']) + 1)
                     ann_ids.append(ann['id'])
                     image_id.append(ann['image_id'])
+                    # 按照way分
+                    way_index = cat_ids.index(ann['category_id'])
+                    category_id_way[way_index].append(ann['category_id'])
+                    boxes_way[way_index].append([x1, y1, x2, y2])
+                    labels_way[way_index].append(way_index + 1)
+                    ann_ids_way[way_index].append(ann['id'])
+                    image_id_way[way_index].append(ann['image_id'])
             if self.is_cuda:
                 query_anns.append({'boxes': torch.tensor(boxes).cuda(),
                                    'labels': torch.tensor(labels, dtype=torch.int64).cuda(),
                                    'image_id': image_id,
                                    'category_id': category_id,
                                    'ann_ids': ann_ids})
+                for i, bw in enumerate(boxes_way):
+                    query_anns_group_by_way[i].append({'boxes': torch.tensor(boxes_way[i]).cuda(),
+                                                       'labels': torch.tensor(labels_way[i],
+                                                                              dtype=torch.int64).cuda(),
+                                                       'image_id': image_id_way[i],
+                                                       'category_id': category_id_way[i],
+                                                       'ann_ids': ann_ids_way[i]})
+
             else:
                 query_anns.append({'boxes': torch.tensor(boxes),
-                                   'labels': torch.tensor(labels, dtype=torch.int64).int(),
+                                   'labels': torch.tensor(labels, dtype=torch.int64),
                                    'image_id': image_id,
                                    'category_id': category_id,
                                    'ann_ids': ann_ids})
+                for i, bw in enumerate(boxes_way):
+                    query_anns_group_by_way[i].append({'boxes': torch.tensor(boxes_way[i]),
+                                                       'labels': torch.tensor(labels_way[i],
+                                                                              dtype=torch.int64),
+                                                       'image_id': image_id_way[i],
+                                                       'category_id': category_id_way[i],
+                                                       'ann_ids': ann_ids_way[i]})
 
         # query
         query_info = self.coco.loadImgs(query_ids)
@@ -404,7 +432,7 @@ class CocoDataset(Dataset):
             q = t_q(Image.open(path).convert('RGB'))
             query.append(q)
 
-        return support, bg, query, query_anns
+        return support, bg, query, query_anns, query_anns_group_by_way
 
     def crop_support_bg(self, support_label_ids, cat_ids, is_show=False):
         r"""
@@ -474,7 +502,7 @@ if __name__ == '__main__':
     val_json = 'cocoformatJson/voc_2012_trainval.json'
     test_json = 'cocoformatJson/voc_2012_val.json'
     dataset = CocoDataset(root=root, ann_path=train_json, img_path='train2017',
-                       way=5, shot=5, is_cuda=True, catIds=novel_ids_voc1)
+                          way=5, shot=5, is_cuda=True, catIds=novel_ids_voc1)
 
     for support, bg, query, query_anns, cat_ids in tqdm(dataset):
         pass

@@ -5,18 +5,14 @@
 
 import json
 import os
-import sys
-from copy import deepcopy
 import random
 
 import torch
 from PIL import Image, ImageDraw
 from PIL import ImageFont
-from torchvision.transforms import transforms
 from tqdm import tqdm
 
 from models.FRDet import FRDet
-
 from utils.dataset import CocoDataset
 
 ttf = ImageFont.load_default()
@@ -152,6 +148,7 @@ def test_iteration(dataset, model, save_images):
         postfix = {'mission': '{:3}/{:3}'.format(index + 1, len(pbar)),
                    'catIds': cat_ids}
         pbar.set_postfix(postfix)
+        query_anns, _ = query_anns
         predictions.extend(result_process(dataset, result, query_anns, save_images, cat_ids))
     return predictions
 

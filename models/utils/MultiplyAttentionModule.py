@@ -46,13 +46,13 @@ class MultiplyAttentionModule(nn.Module):
         self.PA = PixelAttention(in_channels)
         self.CA = ChannelAttention(in_channels, reduction=reduction)
 
-    def forward(self, support, query, image=None, target=None, index=None):
+    def forward(self, support, query, image=None, target=None):
         channel_attention = self.CA.forward(support)
         pixel_attention = F.softmax(self.PA.forward(query), dim=1)
         fg_attention = pixel_attention[:, :1, :, :]
         out = query * channel_attention * fg_attention
         if self.training:
-            mask = self._generate_mask(image, target, index)
+            mask = self._generate_mask(image, target)
             loss_attention = self._compute_attention_loss(mask, fg_attention)
         else:
             loss_attention = None
@@ -65,9 +65,9 @@ class MultiplyAttentionModule(nn.Module):
         out = query * channel_attention * fg_attention
         return out
 
-    def _generate_mask(self, image: ImageList, target, index):
-        mask = torch.zeros(image.tensors[index].shape[1:]).cuda()
-        boxes = target[index]['boxes']
+    def _generate_mask(self, image: ImageList, target):
+        mask = torch.zeros(image.tensors.shape[1:]).cuda()
+        boxes = target['boxes']
         for box in boxes:
             x1, y1, x2, y2 = box
             mask[int(y1):int(y2), int(x1):int(x2)] = 1.0

@@ -3,9 +3,9 @@
 # AUTHOR: 17795
 # TIME: 2022-11-16 14:25
 import torch
-from torch import nn
 import torch.nn.functional as F
-from torchvision.models.detection.faster_rcnn import TwoMLPHead, FastRCNNPredictor
+from torch import nn
+from torchvision.models.detection.faster_rcnn import TwoMLPHead
 
 
 class FRBoxHead(TwoMLPHead):
@@ -339,9 +339,19 @@ class FRPredictHead_Simple(nn.Module):
         self.num_classes = num_classes
         self.Woodubry = Woodubry
         self.bbox_pred = nn.Linear(representation_size, num_classes * 4)
-        self.encoder = nn.Sequential(nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
-                                     nn.BatchNorm2d(256),
-                                     nn.LeakyReLU(inplace=True))
+        # self.encoder = nn.Sequential(
+        #     nn.Conv2d(256, 128, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2d(128),
+        #     nn.LeakyReLU(inplace=True),
+        #     nn.Conv2d(128, 64, kernel_size=1, stride=1, padding=0),
+        #     nn.BatchNorm2d(64),
+        #     nn.LeakyReLU(inplace=True)
+        # )
+        self.encoder = nn.Sequential(
+            nn.Conv2d(256, 64, kernel_size=1, stride=1, padding=0),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(inplace=True)
+        )
         self.r = nn.Parameter(torch.zeros(2), requires_grad=True)
         self.scale = nn.Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
@@ -352,9 +362,9 @@ class FRPredictHead_Simple(nn.Module):
         x = x.flatten(start_dim=1)
         bbox_deltas = self.bbox_pred(x)
 
-        support = self.encoder(support) + support
-        bg = self.encoder(bg) + bg
-        query = self.encoder(query) + query
+        support = self.encoder(support)
+        bg = self.encoder(bg)
+        query = self.encoder(query)
         # 分类
         scores, support = self.cls_predictor(
             support=support,
