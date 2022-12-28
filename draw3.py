@@ -16,10 +16,10 @@ from tqdm import tqdm
 lr_list = [2e-03]
 lw_list = ['20221213_无监督attention']
 
-max_epoch = 30
+max_epoch = 40
 loss_weights无监督attention = {'loss_classifier': 1, 'loss_box_reg': 1,
                             'loss_objectness': 1, 'loss_rpn_box_reg': 1,
-                            'loss_attention': 0, 'loss_aux': 1,
+                            'loss_attention': 1, 'loss_aux': 1,
                             'loss_sum': 1}
 
 
@@ -110,6 +110,4 @@ if __name__ == '__main__':
     #             .format(lw, 2, 5, lr)
     #         draw(root=root)
     max_epoch = 40
-    draw('result/not_flatten_model_20221215_有监督_voc1/result_voc_r50_2way_5shot_lr0.002/results')
-    draw('result/not_flatten_model_20221215_有监督_voc2/result_voc_r50_2way_5shot_lr0.002/results')
-    draw('result/not_flatten_model_20221215_有监督_voc3/result_voc_r50_2way_5shot_lr0.002/results')
+    draw('result/not_flatten_model_20221217_有监督_5x5_FR前景注意力_fsod/result_fsod_r50_2way_5shot_lr0.002/results')

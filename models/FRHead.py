@@ -3,9 +3,9 @@
 # AUTHOR: 17795
 # TIME: 2022-11-16 14:25
 import torch
-from torch import nn
 import torch.nn.functional as F
-from torchvision.models.detection.faster_rcnn import TwoMLPHead, FastRCNNPredictor
+from torch import nn
+from torchvision.models.detection.faster_rcnn import TwoMLPHead
 
 
 class FRBoxHead(TwoMLPHead):
@@ -342,6 +342,10 @@ class FRPredictHead_Simple(nn.Module):
         self.encoder = nn.Sequential(nn.Conv2d(256, 64, kernel_size=1, stride=1, padding=0),
                                      nn.BatchNorm2d(64),
                                      nn.LeakyReLU(inplace=True))
+        self.front_att = nn.Sequential(nn.Conv2d(256, 2, kernel_size=1, stride=1, padding=0),
+                                       nn.BatchNorm2d(2),
+                                       nn.LeakyReLU(inplace=True),
+                                       nn.Softmax(1))
         self.r = nn.Parameter(torch.zeros(2), requires_grad=True)
         self.scale = nn.Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
@@ -352,9 +356,9 @@ class FRPredictHead_Simple(nn.Module):
         x = x.flatten(start_dim=1)
         bbox_deltas = self.bbox_pred(x)
 
-        support = self.encoder(support)
-        bg = self.encoder(bg)
-        query = self.encoder(query)
+        support = self.encoder(support) * self.front_att(support)[:, 1:, :, :]
+        bg = self.encoder(bg) * self.front_att(bg)[:, 1:, :, :]
+        query = self.encoder(query) * self.front_att(query)[:, 1:, :, :]
         # 分类
         scores, support = self.cls_predictor(
             support=support,

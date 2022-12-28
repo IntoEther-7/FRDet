@@ -66,7 +66,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # 模型
         model=model,
         # 训练轮数
-        max_epoch=40,
+        max_epoch=12,
         # 继续训练参数
         continue_epoch=None, continue_iteration=None, continue_weight=None,
         # 保存相关的参数
@@ -102,4 +102,4 @@ if __name__ == '__main__':
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc2', base_ids_voc2)
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc3', base_ids_voc3)
     # 20221217 晚上
-    way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20221217_有监督_5x5_FR前景注意力_voc1', base_ids_voc1)
+    way_shot_train(2, 5, 2e-02, loss_weights0, 0, '20221217_有监督_5x5_FR前景注意力_快速_voc1', base_ids_voc1)

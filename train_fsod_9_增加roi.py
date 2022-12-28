@@ -10,9 +10,9 @@ from utils.dataset import *
 from utils.trainer_without_loss_weight import trainer
 
 torch.set_printoptions(sci_mode=False)
-root = '../FRNOD/datasets/voc/VOCdevkit/VOC2012'
-json_path = 'cocoformatJson/voc_2012_train.json'
-img_path = 'JPEGImages'
+root = '../FRNOD/datasets/fsod'
+json_path = 'annotations/fsod_train.json'
+img_path = 'images'
 loss_weights0 = {'loss_classifier': 1, 'loss_box_reg': 1,
                  'loss_objectness': 1, 'loss_rpn_box_reg': 1,
                  'loss_attention': 1, 'loss_aux': 1}
@@ -25,7 +25,7 @@ loss_weights无监督attention = {'loss_classifier': 1, 'loss_box_reg': 1,
 
 
 def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, split_cats):
-    save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_voc_r50_{}way_{}shot_lr{}' \
+    save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_fsod_r50_{}way_{}shot_lr{}' \
         .format(loss_weights_index, way, shot, lr)
     model = FRDet(
         # box_predictor params
@@ -39,8 +39,8 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # RPN parameters
         rpn_anchor_generator=AnchorGenerator(((32, 64, 128, 256, 512),), ((0.5, 1.0, 2.0),)),
         rpn_head=None,
-        rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=2000,
-        rpn_post_nms_top_n_train=1000, rpn_post_nms_top_n_test=1000,
+        rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=12000,
+        rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=2000,
         rpn_nms_thresh=0.7,
         rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
         rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
@@ -66,7 +66,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # 模型
         model=model,
         # 训练轮数
-        max_epoch=40,
+        max_epoch=60,
         # 继续训练参数
         continue_epoch=None, continue_iteration=None, continue_weight=None,
         # 保存相关的参数
@@ -102,4 +102,6 @@ if __name__ == '__main__':
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc2', base_ids_voc2)
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc3', base_ids_voc3)
     # 20221217 晚上
-    way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20221217_有监督_5x5_FR前景注意力_voc1', base_ids_voc1)
+    # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_FR前景注意力_fsod', None)
+    # 20221227
+    way_shot_train(5, 5, 2e-03, loss_weights0, 1, '20221227_有监督_5x5_FR前景注意力_fsod', None)

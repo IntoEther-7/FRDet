@@ -132,7 +132,7 @@ class FRDet(GeneralizedRCNN):
         if box_roi_pool is None:
             box_roi_pool = MultiScaleRoIAlign(
                 featmap_names=['0'],
-                output_size=7,
+                output_size=roi_size,
                 sampling_ratio=2)
         if box_head is None:
             resolution = box_roi_pool.output_size[0]

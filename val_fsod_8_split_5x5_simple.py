@@ -2,23 +2,20 @@
 # PRODUCT: PyCharm
 # AUTHOR: 17795
 # TIME: 2022-11-17 18:54
-import os.path
 
-import torch
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 
 from models.FRDet import FRDet
-from models.FRHead import FRPredictHeadWithFlatten
-from utils.tester import tester
-from utils.trainer import trainer
 from utils.dataset import *
+from utils.tester import tester
 
 torch.set_printoptions(sci_mode=False)
-root = '../FRNOD/datasets/voc/VOCdevkit/VOC2012'
-json_path = 'cocoformatJson/voc_2012_train.json'
-img_path = 'JPEGImages'
-continue_weight = 'FRDet_40_328.pth'
+root = '../FRNOD/datasets/fsod'
+json_path = 'annotations/fsod_train.json'
+img_path = 'images'
+continue_weight = 'FRDet_20_2809.pth'
 save_root = None
+
 
 def way_shot_test(way, shot, lr, index):
     # result_voc_r50_2way_5shot_lr2e-06_loss_weight_0
@@ -52,12 +49,12 @@ def way_shot_test(way, shot, lr, index):
         # 基础参数
         way=way, shot=shot, query_batch=4, is_cuda=True,
         # 设备参数
-        random_seed=None, gpu_index=1,
+        random_seed=None, gpu_index=0,
         # 数据集参数
         root=root,
         json_path=json_path,
         img_path=img_path,
-        split_cats=base_ids_voc1,
+        split_cats=None,
         # 模型
         model=model,
         # 权重文件
@@ -67,7 +64,7 @@ def way_shot_test(way, shot, lr, index):
 
 
 if __name__ == '__main__':
-    save_root=os.path.join('result',
-                           'not_flatten_model_20221217_有监督_5x5_FR前景注意力_voc1',
-                           'result_voc_r50_5way_5shot_lr0.002')
-    way_shot_test(5, 5, 2e-03, 0)
+    save_root = os.path.join('result',
+                             'not_flatten_model_20221217_有监督_5x5_FR前景注意力_fsod',
+                             'result_fsod_r50_2way_5shot_lr0.002')
+    way_shot_test(2, 5, 2e-03, 0)
