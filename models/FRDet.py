@@ -216,13 +216,12 @@ class FRDet(GeneralizedRCNN):
         features = self.backbone.forward(images.tensors)  # (n, channels, h, w)
 
         # 注意力
-        # attention_f, loss_attention = self.attention.forward(self.way, self.shot, support, features, images, targets)
+        attention_f, loss_attention = self.attention.forward(self.way, self.shot, support, features, images, targets)
 
         if isinstance(features, torch.Tensor):
             features = OrderedDict([('0', features)])
 
-        # proposals, proposal_losses = self.rpn.forward(images, attention_f, targets)
-        proposals, proposal_losses = self.rpn.forward(images, features, targets)
+        proposals, proposal_losses = self.rpn.forward(images, attention_f, targets)
         detections, detector_losses, support = self.roi_heads.forward(support, bg, features, proposals,
                                                                       images.image_sizes, targets)
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
@@ -235,7 +234,7 @@ class FRDet(GeneralizedRCNN):
         losses.update(detector_losses)
         losses.update(proposal_losses)
         losses.update({'loss_aux': aux_loss})
-        # losses.update({'loss_attention': loss_attention})
+        losses.update({'loss_attention': loss_attention})
 
         if torch.jit.is_scripting():
             if not self._has_warned:
