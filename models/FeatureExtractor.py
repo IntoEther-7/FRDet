@@ -78,9 +78,8 @@ class FeatureExtractorOnly(nn.Module):
         """
         super(FeatureExtractorOnly, self).__init__()
         if returned_layers is None:
-            returned_layers = [3]
+            returned_layers = [1, 2, 3, 4]
         self.out_channels = 256
-        self.s_scale = 8
 
         self.backbone = resnet_fpn_backbone(backbone_name, pretrained=pretrained, trainable_layers=trainable_layers,
                                             returned_layers=returned_layers)  # (n, 256, x, x)
@@ -112,7 +111,7 @@ class FeatureExtractorOnly(nn.Module):
         :return: List[Tensor]
         """
         features = self.backbone.forward(x)
-        out = features['0']  # 缩小8倍
+        # out = features['0']  # 缩小8倍
         # c2 = self.inception.forward(c2)
         # c3 = features['1']  # 缩小16倍
         # c3 = self.upsample(c3)  # 缩小16倍
@@ -123,7 +122,7 @@ class FeatureExtractorOnly(nn.Module):
         # c4 = self.inception.forward(c4)
         # out = torch.cat([c2, c3, c4], dim=1)
         # out = self.conv(out)
-        return out
+        return features
 
 
 if __name__ == '__main__':

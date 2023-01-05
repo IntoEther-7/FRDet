@@ -9,10 +9,11 @@ from typing import List, Tuple
 import torch
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.generalized_rcnn import GeneralizedRCNN
-from torchvision.models.detection.rpn import RPNHead
+from torchvision.models.detection.rpn import RPNHead, RegionProposalNetwork
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
 
+from models.FPNMAAttention import FPNMAAttention
 from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten, FRPredictHead_Simple
 from models.FeatureExtractor import FeatureExtractor, FeatureExtractorOnly
 
@@ -95,7 +96,7 @@ class FRDet(GeneralizedRCNN):
                                  "is not specified")
 
         backbone = FeatureExtractorOnly(backbone_name, pretrained=pretrained, returned_layers=returned_layers,
-                                    trainable_layers=trainable_layers)
+                                        trainable_layers=trainable_layers)
         out_channels = backbone.out_channels
         channels = out_channels
 
@@ -108,24 +109,23 @@ class FRDet(GeneralizedRCNN):
 
         # RPN
         if rpn_anchor_generator is None:
-            anchor_sizes = ((64, 128, 256, 512),)
+            anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
             aspect_ratios = ((0.5, 1.0, 2.0),) * len(anchor_sizes)
             rpn_anchor_generator = AnchorGenerator(
                 anchor_sizes, aspect_ratios
             )
         if rpn_head is None:
             rpn_head = RPNHead(
-                out_channels * way, rpn_anchor_generator.num_anchors_per_location()[0]
+                out_channels, rpn_anchor_generator.num_anchors_per_location()[0]
             )
         rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train, testing=rpn_pre_nms_top_n_test)
         rpn_post_nms_top_n = dict(training=rpn_post_nms_top_n_train, testing=rpn_post_nms_top_n_test)
-        rpn: MultiplyAttentionRPN = MultiplyAttentionRPN(
-            way, shot,
+        rpn: RegionProposalNetwork = RegionProposalNetwork(
             rpn_anchor_generator, rpn_head,
             rpn_fg_iou_thresh, rpn_bg_iou_thresh,
             rpn_batch_size_per_image, rpn_positive_fraction,
             rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_nms_thresh,
-            score_thresh=rpn_score_thresh, in_channels=backbone.out_channels, reduction=16
+            score_thresh=rpn_score_thresh
         )
 
         # Head
@@ -156,10 +156,12 @@ class FRDet(GeneralizedRCNN):
             bbox_reg_weights,
             box_score_thresh, box_nms_thresh, box_detections_per_img)
         super(FRDet, self).__init__(backbone, rpn, roi_heads, transform)
+        self.way = way
         self.shot = shot
         self.resolution = roi_size ** 2
         self.roi_size = roi_size
         self.support_transform = GeneralizedRCNNTransform(320, 320, image_mean, image_std)
+        self.attention = FPNMAAttention(in_channels=channels, reduction=16, roi_align=box_roi_pool)
 
     def forward(self, support, images, bg, targets=None):
         r"""
@@ -213,9 +215,14 @@ class FRDet(GeneralizedRCNN):
         bg = self.backbone.forward(bg.tensors)  # (way * shot, channels, h, w)
         features = self.backbone.forward(images.tensors)  # (n, channels, h, w)
 
+        # 注意力
+        # attention_f, loss_attention = self.attention.forward(self.way, self.shot, support, features, images, targets)
+
         if isinstance(features, torch.Tensor):
             features = OrderedDict([('0', features)])
-        proposals, proposal_losses = self.rpn(support, images, features, targets)
+
+        # proposals, proposal_losses = self.rpn.forward(images, attention_f, targets)
+        proposals, proposal_losses = self.rpn.forward(images, features, targets)
         detections, detector_losses, support = self.roi_heads.forward(support, bg, features, proposals,
                                                                       images.image_sizes, targets)
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
@@ -228,6 +235,7 @@ class FRDet(GeneralizedRCNN):
         losses.update(detector_losses)
         losses.update(proposal_losses)
         losses.update({'loss_aux': aux_loss})
+        # losses.update({'loss_attention': loss_attention})
 
         if torch.jit.is_scripting():
             if not self._has_warned:

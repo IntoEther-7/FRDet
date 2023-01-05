@@ -44,18 +44,20 @@ class ModifiedRoIHeads(RoIHeads):
             matched_idxs = None
 
         # support align
-        device = support.device
-        way_shot, c, h, w = support.shape
-        support = OrderedDict([('0', support)])
+        if isinstance(support, torch.Tensor):
+            support = OrderedDict([('0', support)])
+        device = support['0'].device
+        way_shot, c, h, w = support['0'].shape
         s_proposals = [torch.Tensor([0, 0, h, w]).unsqueeze(0).to(device) for i in range(way_shot)]
         s_image_shapes = [(h, w) for i in range(way_shot)]
         support = self.box_roi_pool.forward(support, s_proposals, s_image_shapes)
         self.box_roi_pool.scales = None
 
         # bg align
-        device = bg.device
-        way_shot, c, h, w = bg.shape
-        bg = OrderedDict([('0', bg)])
+        if isinstance(bg, torch.Tensor):
+            bg = OrderedDict([('0', bg)])
+        device = bg['0'].device
+        way_shot, c, h, w = bg['0'].shape
         bg_proposals = [torch.Tensor([0, 0, h, w]).unsqueeze(0).to(device) for i in range(way_shot)]
         bg_image_shapes = [(h, w) for i in range(way_shot)]
         bg = self.box_roi_pool.forward(bg, bg_proposals, bg_image_shapes)
