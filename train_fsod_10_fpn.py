@@ -39,8 +39,8 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # RPN parameters
         rpn_anchor_generator=None,
         rpn_head=None,
-        rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=12000,
-        rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=2000,
+        rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=2000,
+        rpn_post_nms_top_n_train=1000, rpn_post_nms_top_n_test=1000,
         rpn_nms_thresh=0.7,
         rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
         rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
@@ -55,7 +55,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
 
     trainer(
         # 基础参数
-        way=way, shot=shot, query_batch=16, is_cuda=True, lr=lr,
+        way=way, shot=shot, query_batch=4, is_cuda=True, lr=lr,
         # 设备参数
         random_seed=None, gpu_index=gpu_index,
         # 数据集参数
@@ -66,7 +66,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # 模型
         model=model,
         # 训练轮数
-        max_epoch=60,
+        max_epoch=25,
         # 继续训练参数
         continue_epoch=None, continue_iteration=None, continue_weight=None,
         # 保存相关的参数
@@ -104,4 +104,4 @@ if __name__ == '__main__':
     # 20221217 晚上
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_FR前景注意力_fsod', None)
     # 20221227
-    way_shot_train(2, 5, 2e-03, loss_weights0, 0, '20230105_fpn', None)
+    way_shot_train(5, 5, 2e-03, loss_weights0, 1, '20230105_fpn', None)
