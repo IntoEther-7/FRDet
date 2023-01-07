@@ -40,7 +40,7 @@ class FPNMAAttention(nn.Module):
             out[k] = q * fg_attention
         if self.training:
             mask = self._generate_mask(target, fg, image)
-            loss_attention = self._compute_attention_loss(mask)
+            loss_attention = self._compute_attention_loss(mask, fg)
         return out, loss_attention
 
     def forward_without_mask(self, way, shot, support, query):
@@ -60,10 +60,21 @@ class FPNMAAttention(nn.Module):
 
     def _generate_mask(self, target, fg, image):
         gt_bbox = [i['boxes'] for i in target]
-        mask = self.roi_align.forward(fg, gt_bbox, image.image_sizes)
+        n, _, w, h = image.tensors.shape
+        mask = torch.zeros((n, 1, w, h)).to(image.tensors.device)
+
+        for index, boxes in enumerate(gt_bbox):
+            for box in boxes:
+                x1, y1, x2, y2 = box
+                mask[index, 0, int(y1):int(y2), int(x1):int(x2)] = 1.0
+
         return mask
 
-    def _compute_attention_loss(self, mask: Tensor):
-        gt_mask = torch.ones_like(mask).to(mask.device)
-        loss_attention = F.binary_cross_entropy(mask, gt_mask)
+    def _compute_attention_loss(self, gt_mask: Tensor, fg):
+        loss_attention = 0
+        for _fg in fg.values():
+            t = transforms.Resize(_fg.shape[2:])
+            _mask = t(gt_mask)
+            loss_attention += F.binary_cross_entropy(_fg, _mask)
+        loss_attention /= len(fg)
         return loss_attention

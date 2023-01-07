@@ -55,7 +55,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
 
     trainer(
         # 基础参数
-        way=way, shot=shot, query_batch=16, is_cuda=True, lr=lr,
+        way=way, shot=shot, query_batch=4, is_cuda=True, lr=lr,
         # 设备参数
         random_seed=None, gpu_index=gpu_index,
         # 数据集参数
@@ -66,9 +66,9 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # 模型
         model=model,
         # 训练轮数
-        max_epoch=12,
+        max_epoch=40,
         # 继续训练参数
-        continue_epoch=None, continue_iteration=None, continue_weight=None,
+        continue_epoch=17, continue_iteration=1100, continue_weight='FRDet_17_1100.pth',
         # 保存相关的参数
         save_root=save_root,
         # loss权重
@@ -102,4 +102,4 @@ if __name__ == '__main__':
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc2', base_ids_voc2)
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc3', base_ids_voc3)
     # 20221217 晚上
-    way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20230105_fpn', base_ids_voc1)
+    way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20230106_fpn', base_ids_voc1)
