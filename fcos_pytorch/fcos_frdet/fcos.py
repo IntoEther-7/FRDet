@@ -79,9 +79,9 @@ class DetectHead(nn.Module):
         cnt_logits  list contains five [batch_size,1,h,w]  
         reg_preds   list contains five [batch_size,4,h,w] 
         '''
-        cls_logits, coords = self._reshape_cat_out(inputs[0], self.strides)  # [batch_size,sum(_h*_w),class_num]
-        cnt_logits, _ = self._reshape_cat_out(inputs[1], self.strides)  # [batch_size,sum(_h*_w),1]
-        reg_preds, _ = self._reshape_cat_out(inputs[2], self.strides)  # [batch_size,sum(_h*_w),4]
+        cls_logits, coords = self._reshape_cat_out(list(inputs['cls'].values()), self.strides)  # [batch_size,sum(_h*_w),class_num]
+        cnt_logits, _ = self._reshape_cat_out(list(inputs['cnt'].values()), self.strides)  # [batch_size,sum(_h*_w),1]
+        reg_preds, _ = self._reshape_cat_out(list(inputs['reg'].values()), self.strides)  # [batch_size,sum(_h*_w),4]
 
         cls_preds = cls_logits.sigmoid_()
         cnt_preds = cnt_logits.sigmoid_()

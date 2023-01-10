@@ -37,7 +37,7 @@ class GenTargets(nn.Module):
         self.limit_range = limit_range
         assert len(strides) == len(limit_range)
 
-    def forward(self, inputs):
+    def forward(self, out, gt_boxes, classes):
         '''
         inputs  
         [0]list [cls_logits,cnt_logits,reg_preds]  
@@ -51,17 +51,15 @@ class GenTargets(nn.Module):
         cnt_targets:[batch_size,sum(_h*_w),1]
         reg_targets:[batch_size,sum(_h*_w),4]
         '''
-        cls_logits, cnt_logits, reg_preds = inputs[0]
-        gt_boxes = inputs[1]
-        classes = inputs[2]
+        cls_logits, cnt_logits, reg_preds = out['cls'], out['cnt'], out['reg']
         cls_targets_all_level = []
         cnt_targets_all_level = []
         reg_targets_all_level = []
         assert len(self.strides) == len(cls_logits)
-        for level in range(len(cls_logits)):
+        for index, level in enumerate(cls_logits.keys()):
             level_out = [cls_logits[level], cnt_logits[level], reg_preds[level]]
-            level_targets = self._gen_level_targets(level_out, gt_boxes, classes, self.strides[level],
-                                                    self.limit_range[level])
+            level_targets = self._gen_level_targets(level_out, gt_boxes, classes, self.strides[index],
+                                                    self.limit_range[index])
             cls_targets_all_level.append(level_targets[0])
             cnt_targets_all_level.append(level_targets[1])
             reg_targets_all_level.append(level_targets[2])
@@ -314,24 +312,27 @@ class LOSS(nn.Module):
             self.config = config
 
     def forward(self, inputs):
-        '''
+        """
         inputs list
         [0]preds:  ....
         [1]targets : list contains three elements [[batch_size,sum(_h*_w),1],[batch_size,sum(_h*_w),1],[batch_size,sum(_h*_w),4]]
-        '''
+        """
         preds, targets = inputs
-        cls_logits, cnt_logits, reg_preds = preds
+        cls_logits = list(preds['cls'].values())
+        cnt_logits = list(preds['cnt'].values())
+        reg_preds = list(preds['reg'].values())
+
         cls_targets, cnt_targets, reg_targets = targets
         mask_pos = (cnt_targets > -1).squeeze(dim=-1)  # [batch_size,sum(_h*_w)]
         cls_loss = compute_cls_loss(cls_logits, cls_targets, mask_pos).mean()  # []
         cnt_loss = compute_cnt_loss(cnt_logits, cnt_targets, mask_pos).mean()
         reg_loss = compute_reg_loss(reg_preds, reg_targets, mask_pos).mean()
-        if self.config.add_centerness:
-            total_loss = cls_loss + cnt_loss + reg_loss
-            return cls_loss, cnt_loss, reg_loss, total_loss
-        else:
-            total_loss = cls_loss + reg_loss + cnt_loss * 0.0
-            return cls_loss, cnt_loss, reg_loss, total_loss
+
+        total_loss = cls_loss + cnt_loss + reg_loss
+        return {'cls_loss': cls_loss,
+                'cnt_loss': cnt_loss,
+                'reg_loss': reg_loss,
+                'total_loss': total_loss}
 
 
 if __name__ == "__main__":

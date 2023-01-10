@@ -66,9 +66,9 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # 模型
         model=model,
         # 训练轮数
-        max_epoch=40,
+        max_epoch=100,
         # 继续训练参数
-        continue_epoch=17, continue_iteration=1100, continue_weight='FRDet_17_1100.pth',
+        continue_epoch=40, continue_iteration=1300, continue_weight='FRDet_40_1304.pth',
         # 保存相关的参数
         save_root=save_root,
         # loss权重
@@ -88,7 +88,7 @@ def train0():
 if __name__ == '__main__':
     # train0()
     # way_shot_train(2, 5, 2e-01, loss_weights0, 0, 0)
-    random.seed(1024)
+    random.seed(4096)
     # 20221208 上午
     # way_shot_train(2, 5, 2e-03, loss_weights0, 0, '20221208')
     # 20221208 下午四点半

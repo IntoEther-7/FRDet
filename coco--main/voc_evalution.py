@@ -16,7 +16,7 @@ import pylab, json
 if __name__ == "__main__":
     gt_path = "../../FRNOD/datasets/voc/VOCdevkit/VOC2012/cocoformatJson/voc_2012_train.json"  # 存放真实标签的路径
     dt_path = os.path.join('../result',
-                           'not_flatten_model_20221217_有监督_5x5_FR前景注意力_voc1',
+                           'not_flatten_model_20230106_fpn',
                            'result_voc_r50_5way_5shot_lr0.002',
                            'validations',
                            'base.json')  # 存放检测结果的路径

@@ -6,8 +6,7 @@
 '''
 import torch
 
-from fcos_frdet.fcos import FCOSDetector
-from models.FRDet import FRDet
+from fcos_pytorch.fcos_frdet.fcos import FCOSDetector
 from utils.trainer import trainer
 
 torch.set_printoptions(sci_mode=False)
