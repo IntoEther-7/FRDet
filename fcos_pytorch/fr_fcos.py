@@ -1,17 +1,22 @@
+from collections import OrderedDict
+
 import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+from torchvision.ops import MultiScaleRoIAlign
 from torchvision.transforms import transforms
 
 from fcos_pytorch.fcos_frdet.fcos import DetectHead, ClipBoxes
 from fcos_pytorch.fcos_frdet.loss import GenTargets, LOSS
+from models.FPNMAAttention import FPNMAAttention
+from models.FRHead import FRPredictHead_FCOS
 
 
 class FCOSBody(nn.Module):
 
-    def __init__(self, way, shot):
+    def __init__(self, way, shot, box_roi_pool):
         super(FCOSBody, self).__init__()
         self.way = way
         self.shot = shot
@@ -23,6 +28,7 @@ class FCOSBody(nn.Module):
         self.conv_out6 = nn.Conv2d(256, 256, kernel_size=(3, 3), padding=(1, 1), stride=(2, 2))
         self.conv_out7 = nn.Conv2d(256, 256, kernel_size=(3, 3), padding=(1, 1), stride=(2, 2))
         self.head = FCOSHead(in_channel=256, class_num=self.way)
+        self.attention = FPNMAAttention(in_channels=256, reduction=16, roi_align=box_roi_pool)
 
     def forward(self, x):
         # 特征提取
@@ -44,6 +50,57 @@ class FCOSBody(nn.Module):
         }
         out = self.head.forward(features)
         return out
+
+    def forward_with_support(self, x, support, targets):
+        # 特征提取
+        support = self.backbone_with_fpn.forward(support)
+        fpn = self.backbone_with_fpn.forward(x)
+
+        # 注意力
+        attention_f, loss_attention = self.attention.forward(self.way, self.shot, support, fpn, x, targets)
+
+        # 确定AP3~AP7
+        AP3 = attention_f['1']
+        AP4 = attention_f['2']
+        AP5 = attention_f['3']
+        AP6 = self.conv_out6(AP5)
+        AP7 = self.conv_out7(F.relu(AP6))
+        features = {
+            'P3': AP3,
+            'P4': AP4,
+            'P5': AP5,
+            'P6': AP6,
+            'P7': AP7,
+        }
+        out = self.head.forward(features)
+
+        # 确定P3~P7
+        query_P3 = fpn['1']
+        query_P4 = fpn['2']
+        query_P5 = fpn['3']
+        query_P6 = self.conv_out6(query_P5)
+        query_P7 = self.conv_out7(F.relu(query_P6))
+        query_features = {
+            'P3': query_P3,
+            'P4': query_P4,
+            'P5': query_P5,
+            'P6': query_P6,
+            'P7': query_P7,
+        }
+
+        support_P3 = support['1']
+        support_P4 = support['2']
+        support_P5 = support['3']
+        support_P6 = self.conv_out6(support_P5)
+        support_P7 = self.conv_out7(F.relu(support_P6))
+        support_features = {
+            'P3': support_P3,
+            'P4': support_P4,
+            'P5': support_P5,
+            'P6': support_P6,
+            'P7': support_P7,
+        }
+        return {'s': support_features, 'q': query_features}, out, loss_attention
 
 
 class FCOSHead(nn.Module):
@@ -102,18 +159,25 @@ class FCOSHead(nn.Module):
         return {'cls': cls_logits, 'cnt': cnt_preds, 'reg': reg_preds}
 
 
-class FCOS(nn.Module):
+class FR_FCOS(nn.Module):
 
     def __init__(self, way, shot,
                  score_threshold=0.3,
                  nms_iou_threshold=0.2,
                  max_detection_boxes_num=150,
+                 roi_size=5,
                  mean=None, std=None):
         super().__init__()
+        self.way = way
+        self.shot = shot
         self.strides = [8, 16, 32, 64, 128]
         self.limit_range = [[-1, 64], [64, 128], [128, 256], [256, 512], [512, 999999]]
 
-        self.fcos_body = FCOSBody(way, shot)
+        box_roi_pool = MultiScaleRoIAlign(
+            featmap_names=['P3', 'P4', 'P5', 'P6', 'P7'],
+            output_size=roi_size,
+            sampling_ratio=2)
+        self.fcos_body = FCOSBody(way, shot, box_roi_pool)
         self.target_layer = GenTargets(strides=self.strides,
                                        limit_range=self.limit_range)
         self.loss_layer = LOSS()
@@ -122,7 +186,9 @@ class FCOS(nn.Module):
                                          max_detection_boxes_num=max_detection_boxes_num,
                                          strides=self.strides,
                                          config=None)
+        self.box_roi_pool = box_roi_pool
         self.clip_boxes = ClipBoxes()
+        self.fr_head = FRPredictHead_FCOS(way, shot, True)
         if mean is None:
             self.mean = [0.485, 0.456, 0.406]
         else:
@@ -132,21 +198,85 @@ class FCOS(nn.Module):
         else:
             self.std = [1., 1., 1.]
 
-    def forward(self, imgs, targets):
+    def fcos_forward(self, imgs, targets, support):
         losses = None
-        results = None
+
         if self.training:
             batch_imgs, batch_boxes, batch_classes = collate_fn_train(imgs, targets, self.mean, self.std)
-            out = self.fcos_body(batch_imgs)
-            targets = self.target_layer(out, batch_boxes, batch_classes)
-            losses = self.loss_layer.forward([out, targets])
+            support = collate_fn_support(support, self.mean, self.std)
+            # out = self.fcos_body.forward(batch_imgs)
+            features, out, loss_attention = self.fcos_body.forward_with_support(batch_imgs, support, targets)
+            post_targets = self.target_layer(out, batch_boxes, batch_classes)
+            losses = self.loss_layer.forward([out, post_targets])
+            losses['att_loss'] = loss_attention
         else:
             batch_imgs, batch_boxes, batch_classes = collate_fn_val(imgs, targets, self.mean, self.std)
-            out = self.fcos_body(batch_imgs)
-            scores, classes, boxes = self.detection_head(out)
-            boxes = self.clip_boxes(batch_imgs, boxes)
-            results = (scores, classes, boxes)
+            features, out, _ = self.fcos_body.forward_with_support(batch_imgs, support, targets)
+
+        scores, classes, boxes = self.detection_head(out)
+        boxes = self.clip_boxes(batch_imgs, boxes)
+        results = {'scores': scores,
+                   'classes': classes,
+                   'boxes': boxes}
+        return losses, results, features
+
+    def forward(self, imgs, targets, support):
+        losses, results, features = self.fcos_forward(imgs, targets, support)
+        boxes = results['boxes']
+        fr_scores, support = self.fr_forward(imgs, features, boxes)
+        results['fr_scores'] = fr_scores
+        if self.training:
+            loss_aux = self.auxrank(support)
+            losses['aux_loss'] = loss_aux
         return losses, results
+
+    def fr_forward(self, imgs, features, boxes):
+        s = features['s']
+        device = s['P3'].device
+        way_shot, c, h, w = s['P3'].shape
+        s_boxes = [torch.Tensor([0, 0, h, w]).unsqueeze(0).to(device) for i in range(way_shot)]
+        s_image_shapes = [(h, w) for i in range(way_shot)]
+
+        image_shape = [(int(img.shape[1]), int(img.shape[2])) for img in imgs]
+
+        query_rois = self.box_roi_pool.forward(features['q'], [box for box in boxes], image_shape)
+        self.box_roi_pool.scales = None
+        support_rois = self.box_roi_pool.forward(features['s'], s_boxes, s_image_shapes)
+        self.box_roi_pool.scales = None
+
+        query_batch, roi_per_img = boxes.shape[:2]
+        fr_scores, support = self.fr_head.forward(support_rois, query_rois)
+        fr_scores = fr_scores.reshape(query_batch, roi_per_img, self.way)
+
+        return fr_scores, support
+
+    def cls_loss(self, fr_scores, targets):
+        pass
+
+    def auxrank(self, support: torch.Tensor):
+        r"""
+
+        :param support: (way, shot * resolution, channels) -> (way, shot * r, channels)
+        :return:
+        """
+        way = support.size(0)
+        shot = support.size(1)
+        # (way, shot * resolution, channels) -> (way, shot * r, c)
+        support = support / support.norm(2).unsqueeze(-1)
+        L1 = torch.zeros((way ** 2 - way) // 2).long().to(support.device)
+        L2 = torch.zeros((way ** 2 - way) // 2).long().to(support.device)
+        counter = 0
+        for i in range(way):
+            for j in range(i):
+                L1[counter] = i
+                L2[counter] = j
+                counter += 1
+        s1 = support.index_select(0, L1)  # (s^2-s)/2, s, d
+        s2 = support.index_select(0, L2)  # (s^2-s)/2, s, d
+        dists = s1.matmul(s2.permute(0, 2, 1))  # (s^2-s)/2, s, s
+        assert dists.size(-1) == shot
+        frobs = dists.pow(2).sum(-1).sum(-1)
+        return frobs.sum()
 
 
 def collate_fn_train(imgs_list, target, mean, std):
@@ -218,6 +348,24 @@ def collate_fn_val(imgs_list, target, mean, std):
     batch_imgs = torch.stack(pad_imgs_list)
 
     return batch_imgs, batch_boxes, batch_classes
+
+
+def collate_fn_support(imgs_list, mean, std):
+    batch_size = len(imgs_list)
+    pad_imgs_list = []
+
+    h_list = [int(s.shape[1]) for s in imgs_list]
+    w_list = [int(s.shape[2]) for s in imgs_list]
+    max_h = np.array(h_list).max()
+    max_w = np.array(w_list).max()
+    for i in range(batch_size):
+        img = imgs_list[i]
+        pad_imgs_list.append(transforms.Normalize(mean, std, inplace=True)(
+            torch.nn.functional.pad(img, (0, int(max_w - img.shape[2]), 0, int(max_h - img.shape[1])), value=0.)))
+
+    batch_imgs = torch.stack(pad_imgs_list)
+
+    return batch_imgs
 
 
 if __name__ == '__main__':

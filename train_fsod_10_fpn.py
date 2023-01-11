@@ -104,4 +104,4 @@ if __name__ == '__main__':
     # 20221217 晚上
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_FR前景注意力_fsod', None)
     # 20221227
-    way_shot_train(5, 5, 2e-03, loss_weights0, 1, '20230106_fpn', None)
+    way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20230110_fpn', None)

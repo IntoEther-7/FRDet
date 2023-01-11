@@ -16,10 +16,10 @@ import pylab, json
 if __name__ == "__main__":
     gt_path = "../../FRNOD/datasets/fsod/annotations/fsod_train.json"  # 存放真实标签的路径
     dt_path = os.path.join('../result',
-                           'not_flatten_model_20221217_有监督_5x5_FR前景注意力_fsod',
-                           'result_fsod_r50_2way_5shot_lr0.002',
+                           'not_flatten_model_20230106_fpn',
+                           'result_fsod_r50_5way_5shot_lr0.002',
                            'validations',
-                           'prediction.json')  # 存放检测结果的路径
+                           'base.json')  # 存放检测结果的路径
     # dt_path = "my_result.json"  # 存放检测结果的路径
     print(dt_path)
     # 处理阶段START-----------------------------------

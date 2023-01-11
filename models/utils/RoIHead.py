@@ -9,7 +9,9 @@ import torch
 from torchvision.models.detection.roi_heads import RoIHeads, maskrcnn_loss, maskrcnn_inference, \
     keypointrcnn_loss, keypointrcnn_inference, fastrcnn_loss
 
+from torch.nn import functional as F
 from models.FRHead import FRPredictHead, FRPredictHeadWithFlatten
+from torchvision.models.detection import _utils as det_utils
 
 
 class ModifiedRoIHeads(RoIHeads):
@@ -73,14 +75,13 @@ class ModifiedRoIHeads(RoIHeads):
             bg = self.box_head(bg)  # (way * shot, 1024)
 
         # 送入head
-        class_logits, box_regression, support = self.box_predictor.forward(support, bg, box_features,
-                                                                           box_fc)
+        class_logits, box_regression, support = self.box_predictor.forward(support, box_features, box_fc)
 
         result: List[Dict[str, torch.Tensor]] = []
         losses = {}
         if self.training:
             assert labels is not None and regression_targets is not None
-            loss_classifier, loss_box_reg = fastrcnn_loss(
+            loss_classifier, loss_box_reg = modified_fastrcnn_loss(
                 class_logits, box_regression, labels, regression_targets)
             losses = {
                 "loss_classifier": loss_classifier,
@@ -188,3 +189,43 @@ class ModifiedRoIHeads(RoIHeads):
             losses.update(loss_keypoint)
 
         return result, losses, support
+
+
+def modified_fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
+    # type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
+    """
+    Computes the loss for Faster R-CNN.
+
+    Args:
+        class_logits (Tensor)
+        box_regression (Tensor)
+        labels (list[BoxList])
+        regression_targets (Tensor)
+
+    Returns:
+        classification_loss (Tensor)
+        box_loss (Tensor)
+    """
+
+    labels = torch.cat(labels, dim=0)
+    regression_targets = torch.cat(regression_targets, dim=0)
+
+    classification_loss = F.cross_entropy(class_logits, labels)
+
+    # get indices that correspond to the regression targets for
+    # the corresponding ground truth labels, to be used with
+    # advanced indexing
+    sampled_pos_inds_subset = torch.where(labels > 0)[0]
+    labels_pos = labels[sampled_pos_inds_subset] - 1
+    N, num_classes = class_logits.shape
+    box_regression = box_regression.reshape(N, box_regression.size(-1) // 4, 4)
+
+    box_loss = det_utils.smooth_l1_loss(
+        box_regression[sampled_pos_inds_subset, labels_pos],
+        regression_targets[sampled_pos_inds_subset],
+        beta=1 / 9,
+        size_average=False,
+    )
+    box_loss = box_loss / labels.numel()
+
+    return classification_loss, box_loss

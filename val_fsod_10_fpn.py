@@ -65,7 +65,7 @@ def way_shot_test(way, shot, lr, index):
 
 if __name__ == '__main__':
     save_root = os.path.join('result',
-                             'not_flatten_model_20230105_fpn',
+                             'not_flatten_model_20230106_fpn',
                              'result_fsod_r50_5way_5shot_lr0.002')
-    continue_weight = 'FRDet_4_2300.pth'
+    continue_weight = 'FRDet_25_10572.pth'
     way_shot_test(5, 5, 2e-03, 0)

@@ -78,7 +78,7 @@ class MultiplyAttentionRPN(RegionProposalNetwork):
             c, w, h = feature.shape[1:]
             f_list = []
             for index, f in enumerate(feature):
-                f, loss_a = self.attention.forward(support, torch.unsqueeze(f, dim=0), images, targets, index)
+                f, loss_a = self.attention.forward(support, torch.unsqueeze(f, dim=0), images.tensors, targets, index)
                 f = f.view(self.way, self.shot, c, w, h)
                 f = f.mean(1)
                 f = f.view(self.way * c, w, h)

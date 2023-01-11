@@ -71,4 +71,4 @@ if __name__ == '__main__':
     save_root=os.path.join('result',
                            'not_flatten_model_20230106_fpn',
                            'result_voc_r50_5way_5shot_lr0.002')
-    way_shot_test(5, 5, 2e-03, 0)
+    way_shot_test(5, 5, 2e-03, 1)

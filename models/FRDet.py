@@ -14,7 +14,8 @@ from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
 
 from models.FPNMAAttention import FPNMAAttention
-from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten, FRPredictHead_Simple
+from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten, FRPredictHead_Simple, FRPredictHead_FCOS, \
+    FRPredictHead_FRDet
 from models.FeatureExtractor import FeatureExtractor, FeatureExtractorOnly
 
 from models.MARPN import MultiplyAttentionRPN
@@ -147,7 +148,8 @@ class FRDet(GeneralizedRCNN):
         if box_predictor is None:
             representation_size = 1024
             # box_predictor = FRPredictHeadWithFlatten(way, shot, representation_size, num_classes, dropout_rate=0.3)
-            box_predictor = FRPredictHead_Simple(way, shot, representation_size, num_classes, Woodubry)
+            # box_predictor = FRPredictHead_Simple(way, shot, representation_size, num_classes, Woodubry)
+            box_predictor = FRPredictHead_FRDet(way, shot, representation_size, Woodubry)
         roi_heads = ModifiedRoIHeads(
             # Box
             box_roi_pool, box_head, box_predictor,
@@ -216,7 +218,7 @@ class FRDet(GeneralizedRCNN):
         features = self.backbone.forward(images.tensors)  # (n, channels, h, w)
 
         # 注意力
-        attention_f, loss_attention = self.attention.forward(self.way, self.shot, support, features, images, targets)
+        attention_f, loss_attention = self.attention.forward(self.way, self.shot, support, features, images.tensors, targets)
 
         if isinstance(features, torch.Tensor):
             features = OrderedDict([('0', features)])

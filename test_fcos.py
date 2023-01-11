@@ -10,7 +10,7 @@
 import torch.cuda
 from tqdm import tqdm
 
-from fcos_pytorch.fcos import FCOS, collate_fn_train
+from fcos_pytorch.fr_fcos import FR_FCOS, collate_fn_train
 from utils.dataset import CocoDataset, base_ids_voc1, novel_ids_voc1
 
 root = '../FRNOD/datasets/voc/VOCdevkit/VOC2012'
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     way = 5
     shot = 5
     torch.cuda.set_device(0)
-    model = FCOS(way, shot).cuda()
+    model = FR_FCOS(way, shot).cuda()
 
     dataset = CocoDataset(root=root, ann_path=json_path, img_path=img_path,
                           way=way, shot=shot, query_batch=16,
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     for index, item in enumerate(pbar):
         support, bg, query, query_anns, cat_ids = item
         model.train()
-        losses, result = model.forward(query, targets=query_anns)
+        losses, result = model.forward(query, targets=query_anns, support=support)
         losses['total_loss'].backward()
         # model.eval()
         # losses, result = model.forward(query, targets=query_anns)

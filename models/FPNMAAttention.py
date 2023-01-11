@@ -23,7 +23,7 @@ class FPNMAAttention(nn.Module):
         self.CA = ChannelAttention(in_channels, reduction=reduction)
         self.roi_align: MultiScaleRoIAlign = roi_align
 
-    def forward(self, way, shot, support, query, image=None, target=None):
+    def forward(self, way, shot, support, query, image_tensors=None, target=None):
         out = {}
         fg = {}
         loss_attention = None
@@ -39,7 +39,7 @@ class FPNMAAttention(nn.Module):
             fg[k] = fg_attention
             out[k] = q * fg_attention
         if self.training:
-            mask = self._generate_mask(target, fg, image)
+            mask = self._generate_mask(target, fg, image_tensors)
             loss_attention = self._compute_attention_loss(mask, fg)
         return out, loss_attention
 
@@ -58,10 +58,10 @@ class FPNMAAttention(nn.Module):
                 .reshape(n, way * c, w, h)
         return out
 
-    def _generate_mask(self, target, fg, image):
+    def _generate_mask(self, target, fg, image_tensors):
         gt_bbox = [i['boxes'] for i in target]
-        n, _, w, h = image.tensors.shape
-        mask = torch.zeros((n, 1, w, h)).to(image.tensors.device)
+        n, _, w, h = image_tensors.shape
+        mask = torch.zeros((n, 1, w, h)).to(image_tensors.device)
 
         for index, boxes in enumerate(gt_bbox):
             for box in boxes:
