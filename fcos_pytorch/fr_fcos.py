@@ -12,6 +12,7 @@ from fcos_pytorch.fcos_frdet.fcos import DetectHead, ClipBoxes
 from fcos_pytorch.fcos_frdet.loss import GenTargets, LOSS
 from models.FPNMAAttention import FPNMAAttention
 from models.FRHead import FRPredictHead_FCOS
+from utils.FCOSRoIHead import FCOSModifiedRoIHeads
 
 
 class FCOSBody(nn.Module):
@@ -189,6 +190,10 @@ class FR_FCOS(nn.Module):
         self.box_roi_pool = box_roi_pool
         self.clip_boxes = ClipBoxes()
         self.fr_head = FRPredictHead_FCOS(way, shot, True)
+        self.roi_head = FCOSModifiedRoIHeads(box_roi_pool, self.fr_head, fg_iou_thresh=0.7,
+                                             bg_iou_thresh=0.3, batch_size_per_image=150,
+                                             positive_fraction=0.7, bbox_reg_weights=None,
+                                             score_thresh=0.3, nms_thresh=0.3, detections_per_img=150)
         if mean is None:
             self.mean = [0.485, 0.456, 0.406]
         else:
@@ -211,6 +216,7 @@ class FR_FCOS(nn.Module):
             losses['att_loss'] = loss_attention
         else:
             batch_imgs, batch_boxes, batch_classes = collate_fn_val(imgs, targets, self.mean, self.std)
+            support = collate_fn_support(support, self.mean, self.std)
             features, out, _ = self.fcos_body.forward_with_support(batch_imgs, support, targets)
 
         scores, classes, boxes = self.detection_head(out)
@@ -223,32 +229,22 @@ class FR_FCOS(nn.Module):
     def forward(self, imgs, targets, support):
         losses, results, features = self.fcos_forward(imgs, targets, support)
         boxes = results['boxes']
-        fr_scores, support = self.fr_forward(imgs, features, boxes)
-        results['fr_scores'] = fr_scores
+        results, losses_cls, support = self.fr_forward(imgs, features, boxes, targets)
+        losses.update(losses_cls)
         if self.training:
             loss_aux = self.auxrank(support)
             losses['aux_loss'] = loss_aux
+        losses.pop('total_loss')
         return losses, results
 
-    def fr_forward(self, imgs, features, boxes):
-        s = features['s']
-        device = s['P3'].device
-        way_shot, c, h, w = s['P3'].shape
-        s_boxes = [torch.Tensor([0, 0, h, w]).unsqueeze(0).to(device) for i in range(way_shot)]
-        s_image_shapes = [(h, w) for i in range(way_shot)]
+    def fr_forward(self, imgs, features, boxes, targets):
 
         image_shape = [(int(img.shape[1]), int(img.shape[2])) for img in imgs]
 
-        query_rois = self.box_roi_pool.forward(features['q'], [box for box in boxes], image_shape)
-        self.box_roi_pool.scales = None
-        support_rois = self.box_roi_pool.forward(features['s'], s_boxes, s_image_shapes)
-        self.box_roi_pool.scales = None
-
-        query_batch, roi_per_img = boxes.shape[:2]
-        fr_scores, support = self.fr_head.forward(support_rois, query_rois)
-        fr_scores = fr_scores.reshape(query_batch, roi_per_img, self.way)
-
-        return fr_scores, support
+        result, losses, support = self.roi_head.forward(features['s'], features['q'],
+                                                        [box for box in boxes],
+                                                        image_shape, targets=targets)
+        return result, losses, support
 
     def cls_loss(self, fr_scores, targets):
         pass

@@ -12,6 +12,7 @@ from torchvision.models.detection.generalized_rcnn import GeneralizedRCNN
 from torchvision.models.detection.rpn import RPNHead, RegionProposalNetwork
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
 from torchvision.ops import MultiScaleRoIAlign
+from tqdm import tqdm
 
 from models.FPNMAAttention import FPNMAAttention
 from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten, FRPredictHead_Simple, FRPredictHead_FCOS, \
@@ -19,6 +20,7 @@ from models.FRHead import FRBoxHead, FRPredictHead, FRPredictHeadWithFlatten, FR
 from models.FeatureExtractor import FeatureExtractor, FeatureExtractorOnly
 
 from models.MARPN import MultiplyAttentionRPN
+from models.rpn import RPN
 from models.utils.RoIHead import ModifiedRoIHeads
 
 
@@ -46,7 +48,8 @@ class FRDet(GeneralizedRCNN):
                  box_score_thresh=0.05, box_nms_thresh=0.5, box_detections_per_img=100,
                  box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,
                  box_batch_size_per_image=64, box_positive_fraction=0.25,
-                 bbox_reg_weights=None):
+                 bbox_reg_weights=None,
+                 rpn_focal=False, head_focal=False):
         r"""
 
         :param way:
@@ -121,7 +124,7 @@ class FRDet(GeneralizedRCNN):
             )
         rpn_pre_nms_top_n = dict(training=rpn_pre_nms_top_n_train, testing=rpn_pre_nms_top_n_test)
         rpn_post_nms_top_n = dict(training=rpn_post_nms_top_n_train, testing=rpn_post_nms_top_n_test)
-        rpn: RegionProposalNetwork = RegionProposalNetwork(
+        rpn: RegionProposalNetwork = RPN(
             rpn_anchor_generator, rpn_head,
             rpn_fg_iou_thresh, rpn_bg_iou_thresh,
             rpn_batch_size_per_image, rpn_positive_fraction,
@@ -164,6 +167,8 @@ class FRDet(GeneralizedRCNN):
         self.roi_size = roi_size
         self.support_transform = GeneralizedRCNNTransform(320, 320, image_mean, image_std)
         self.attention = FPNMAAttention(in_channels=channels, reduction=16, roi_align=box_roi_pool)
+        self.rpn_focal = rpn_focal
+        self.head_focal = head_focal
 
     def forward(self, support, images, bg, targets=None):
         r"""
@@ -199,6 +204,12 @@ class FRDet(GeneralizedRCNN):
         bg, _ = self.support_transform(bg)
         images, targets = self.transform(images, targets)
 
+        # 打印
+        num_fg = 0
+        for t in targets:
+            num_fg += t['boxes'].shape[0]
+        tqdm.write('前景数: {}'.format(num_fg))
+
         # Check for degenerate boxes
         if targets is not None:
             for target_idx, target in enumerate(targets):
@@ -218,14 +229,19 @@ class FRDet(GeneralizedRCNN):
         features = self.backbone.forward(images.tensors)  # (n, channels, h, w)
 
         # 注意力
-        attention_f, loss_attention = self.attention.forward(self.way, self.shot, support, features, images.tensors, targets)
+        attention_f, loss_attention = self.attention.forward(self.way, self.shot,
+                                                             support, features,
+                                                             images.tensors, targets)
 
         if isinstance(features, torch.Tensor):
             features = OrderedDict([('0', features)])
 
-        proposals, proposal_losses = self.rpn.forward(images, attention_f, targets)
+        if self.rpn_focal:
+            proposals, proposal_losses = self.rpn.forward_focal(images, attention_f, targets)
+        else:
+            proposals, proposal_losses = self.rpn.forward(images, attention_f, targets)
         detections, detector_losses, support = self.roi_heads.forward(support, bg, features, proposals,
-                                                                      images.image_sizes, targets)
+                                                                      images.image_sizes, targets, self.head_focal)
         detections = self.transform.postprocess(detections, images.image_sizes, original_image_sizes)
 
         aux_loss = {}
@@ -269,7 +285,7 @@ class FRDet(GeneralizedRCNN):
         dists = s1.matmul(s2.permute(0, 2, 1))  # (s^2-s)/2, s, s
         assert dists.size(-1) == shot
         frobs = dists.pow(2).sum(-1).sum(-1)
-        return frobs.sum()
+        return frobs.sum().mul(0.03)
 
 
 if __name__ == '__main__':

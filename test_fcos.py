@@ -34,9 +34,9 @@ if __name__ == '__main__':
     pbar = tqdm(dataset)
     for index, item in enumerate(pbar):
         support, bg, query, query_anns, cat_ids = item
-        model.train()
+        model.eval()
         losses, result = model.forward(query, targets=query_anns, support=support)
-        losses['total_loss'].backward()
+        # losses['total_loss'].backward()
         # model.eval()
         # losses, result = model.forward(query, targets=query_anns)
         tqdm.write('')

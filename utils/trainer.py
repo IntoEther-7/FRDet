@@ -2,7 +2,9 @@
 # PRODUCT: PyCharm
 # AUTHOR: 17795
 # TIME: 2022-11-23 16:00
+import datetime
 import json
+import logging
 import os
 import sys
 from copy import deepcopy
@@ -52,6 +54,13 @@ def trainer(
     :param save_root:
     :return:
     """
+    # 日志
+    now = datetime.datetime.now()
+    dt_string = now.strftime("%d_%m_%Y-%H_%M_%S")
+    log_print = open(os.path.join(save_root, '{}way_{}shot {}.log'.format(way, shot, dt_string)), 'w')
+    sys.stdout = log_print
+    sys.stderr = log_print
+
     # 检查参数
     if loss_weights is None:
         loss_weights = {'loss_classifier': 0.995, 'loss_box_reg': 0.005,

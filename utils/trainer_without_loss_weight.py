@@ -7,6 +7,7 @@ import os
 import sys
 from copy import deepcopy
 import random
+from datetime import datetime
 
 import torch
 from torchvision.transforms import transforms
@@ -52,6 +53,7 @@ def trainer(
     :param save_root:
     :return:
     """
+
     # 检查参数
     # if loss_weights is None:
     #     loss_weights = {'loss_classifier': 0.995, 'loss_box_reg': 0.005,
@@ -114,6 +116,12 @@ def trainer(
         os.makedirs(save_weights)
     if not os.path.exists(save_results):
         os.makedirs(save_results)
+
+    # # 日志
+    # now = datetime.now()
+    # dt_string = now.strftime("%d_%m_%Y-%H_%M_%S")
+    # log_print = open(os.path.join(save_root, '{}way_{}shot-{}.log'.format(way, shot, dt_string)), 'w')
+    # sys.stdout = log_print
 
     # 训练轮数
     if continue_epoch is not None and continue_iteration is not None:

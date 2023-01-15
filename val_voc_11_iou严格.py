@@ -34,12 +34,12 @@ def way_shot_test(way, shot, lr, index):
         # RPN parameters
         rpn_anchor_generator=None,
         rpn_head=None,
-        rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=2000,
-        rpn_post_nms_top_n_train=1000, rpn_post_nms_top_n_test=1000,
+        rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=12000,
+        rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=2000,
         rpn_nms_thresh=0.7,
         rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
         rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
-        rpn_score_thresh=0.0,
+        rpn_score_thresh=0.5,
         # Box parameters
         box_roi_pool=None, box_head=None, box_predictor=None,
         box_score_thresh=0.05, box_nms_thresh=0.7, box_detections_per_img=100,
@@ -67,8 +67,8 @@ def way_shot_test(way, shot, lr, index):
 
 
 if __name__ == '__main__':
-    continue_weight = 'FRDet_1_400.pth'
+    continue_weight = 'FRDet_36_100.pth'
     save_root=os.path.join('result',
-                           'not_flatten_model_20230110_fpn',
+                           'not_flatten_model_20230113_fpn_iou严格',
                            'result_voc_r50_5way_5shot_lr0.002')
     way_shot_test(5, 5, 2e-03, 1)

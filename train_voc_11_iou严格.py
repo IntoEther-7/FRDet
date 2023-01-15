@@ -39,12 +39,12 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # RPN parameters
         rpn_anchor_generator=None,
         rpn_head=None,
-        rpn_pre_nms_top_n_train=2000, rpn_pre_nms_top_n_test=2000,
-        rpn_post_nms_top_n_train=1000, rpn_post_nms_top_n_test=1000,
+        rpn_pre_nms_top_n_train=12000, rpn_pre_nms_top_n_test=12000,
+        rpn_post_nms_top_n_train=2000, rpn_post_nms_top_n_test=2000,
         rpn_nms_thresh=0.7,
         rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
         rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
-        rpn_score_thresh=0.0,
+        rpn_score_thresh=0.5,
         # Box parameters
         box_roi_pool=None, box_head=None, box_predictor=None,
         box_score_thresh=0.05, box_nms_thresh=0.7, box_detections_per_img=100,
@@ -102,5 +102,5 @@ if __name__ == '__main__':
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc2', base_ids_voc2)
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc3', base_ids_voc3)
     # 20221217 晚上
-    # way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20230110_fpn_iou严格', base_ids_voc1)
-    way_shot_train(5, 5, 2e-03, loss_weights0, 1, '20230110_fpn_loss修改', base_ids_voc1)
+    way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20230113_fpn_iou严格', base_ids_voc1)
+    # way_shot_train(5, 5, 2e-03, loss_weights0, 1, '20230110_fpn_loss修改', base_ids_voc1)

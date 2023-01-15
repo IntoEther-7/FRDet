@@ -43,6 +43,19 @@ class FPNMAAttention(nn.Module):
             loss_attention = self._compute_attention_loss(mask, fg)
         return out, loss_attention
 
+    def forward_only_channel(self, way, shot, support, query, image_tensors=None, target=None):
+        out = {}
+        loss_attention = 0
+        for k in query.keys():
+            s = support[k]
+            _, c, w, h = s.shape
+            s = s.reshape(way, shot, c, w, h).mean(1)
+            q = query[k]
+            channel_attention = self.CA.forward(s)
+            q = channel_attention.mean(0).unsqueeze(0) * q
+            out[k] = q
+        return out, loss_attention
+
     def forward_without_mask(self, way, shot, support, query):
         out = {}
         for k in query.keys():
@@ -77,4 +90,4 @@ class FPNMAAttention(nn.Module):
             _mask = t(gt_mask)
             loss_attention += F.binary_cross_entropy(_fg, _mask)
         loss_attention /= len(fg)
-        return loss_attention
+        return loss_attention.mul(0.03)

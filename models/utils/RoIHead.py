@@ -5,23 +5,29 @@
 from collections import OrderedDict
 from typing import List, Dict
 
+from torch import nn
+from torchvision.ops import boxes as box_ops
 import torch
 from torchvision.models.detection.roi_heads import RoIHeads, maskrcnn_loss, maskrcnn_inference, \
     keypointrcnn_loss, keypointrcnn_inference, fastrcnn_loss
 
 from torch.nn import functional as F
+from tqdm import tqdm
+
 from models.FRHead import FRPredictHead, FRPredictHeadWithFlatten
 from torchvision.models.detection import _utils as det_utils
 
 
 class ModifiedRoIHeads(RoIHeads):
+
     def forward(self,
                 support,
                 bg,
                 features,  # type: Dict[str, Tensor]
                 proposals,  # type: List[Tensor]
                 image_shapes,  # type: List[Tuple[int, int]]
-                targets=None  # type: Optional[List[Dict[str, Tensor]]]
+                targets=None,  # type: Optional[List[Dict[str, Tensor]]]
+                head_focal=False
                 ):  # type: (...) -> Tuple[List[Dict[str, Tensor]], Dict[str, Tensor]]
         """
                 Args:
@@ -39,6 +45,7 @@ class ModifiedRoIHeads(RoIHeads):
                     assert t["keypoints"].dtype == torch.float32, 'target keypoints must of float type'
 
         if self.training:
+            # targets, proposals选取训练样本
             proposals, matched_idxs, labels, regression_targets = self.select_training_samples(proposals, targets)
         else:
             labels = None
@@ -190,6 +197,64 @@ class ModifiedRoIHeads(RoIHeads):
 
         return result, losses, support
 
+    def postprocess_detections(self,
+                               class_logits,  # type: Tensor
+                               box_regression,  # type: Tensor
+                               proposals,  # type: List[Tensor]
+                               image_shapes  # type: List[Tuple[int, int]]
+                               ):  # type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
+        device = class_logits.device
+        num_classes = class_logits.shape[-1]
+
+        boxes_per_image = [boxes_in_image.shape[0] for boxes_in_image in proposals]
+        pred_boxes = self.box_coder.decode(box_regression, proposals)
+
+        # pred_scores = F.softmax(class_logits, -1)
+        pred_scores = class_logits
+
+        pred_boxes_list = pred_boxes.split(boxes_per_image, 0)
+        pred_scores_list = pred_scores.split(boxes_per_image, 0)
+
+        all_boxes = []
+        all_scores = []
+        all_labels = []
+        for boxes, scores, image_shape in zip(pred_boxes_list, pred_scores_list, image_shapes):
+            boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
+
+            # create labels for each prediction
+            labels = torch.arange(num_classes, device=device)
+            labels = labels.view(1, -1).expand_as(scores)
+
+            # remove predictions with the background label
+            # boxes = boxes[:, 1:]
+            # scores = scores[:, 1:]
+            # labels = labels[:, 1:]
+
+            # batch everything, by making every class prediction be a separate instance
+            boxes = boxes.reshape(-1, 4)
+            scores = scores.reshape(-1)
+            labels = labels.reshape(-1)
+
+            # remove low scoring boxes
+            inds = torch.where(scores > self.score_thresh)[0]
+            boxes, scores, labels = boxes[inds], scores[inds], labels[inds]
+
+            # remove empty boxes
+            keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
+            boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
+
+            # non-maximum suppression, independently done per class
+            keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+            # keep only topk scoring predictions
+            keep = keep[:self.detections_per_img]
+            boxes, scores, labels = boxes[keep], scores[keep], labels[keep]
+
+            all_boxes.append(boxes)
+            all_scores.append(scores)
+            all_labels.append(labels)
+
+        return all_boxes, all_scores, all_labels
+
 
 def modified_fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
     # type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
@@ -210,7 +275,77 @@ def modified_fastrcnn_loss(class_logits, box_regression, labels, regression_targ
     labels = torch.cat(labels, dim=0)
     regression_targets = torch.cat(regression_targets, dim=0)
 
-    classification_loss = F.cross_entropy(class_logits, labels)
+    # get indices that correspond to the regression targets for
+    # the corresponding ground truth labels, to be used with
+    # advanced indexing
+    sampled_pos_inds_subset = torch.where(labels > 0)[0]
+
+    fg_inds = torch.where(labels > 0)[0]
+    bg_inds = torch.where(labels == 0)[0]
+
+    # 另一种损失, 但因为背景偏多, 可能需要focal修正
+    # (n, 5) value: (0 ~ 1)
+    mask = torch.zeros_like(class_logits)  # (n, 5) value: 背景[0], 前景[s - 1]
+    mask[fg_inds, labels[fg_inds] - 1] = 1.
+    classification_loss = F.binary_cross_entropy(class_logits, mask)
+
+    tqdm.write('实际背景数/前景数:\t{:>6}/{:<6}, 分类损失: {:.4}, normal_loss'.format(bg_inds.shape[0],
+                                                                          fg_inds.shape[0],
+                                                                          classification_loss))
+
+    labels_pos = labels[sampled_pos_inds_subset] - 1
+    N, num_classes = class_logits.shape
+    box_regression = box_regression.reshape(N, box_regression.size(-1) // 4, 4)
+
+    box_loss = det_utils.smooth_l1_loss(
+        box_regression[sampled_pos_inds_subset, labels_pos],
+        regression_targets[sampled_pos_inds_subset],
+        beta=1 / 9,
+        size_average=False,
+    )
+    box_loss = box_loss / labels.numel()
+
+    return classification_loss, box_loss
+
+
+def modified_focal_fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
+    # type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
+    """
+    Computes the loss for Faster R-CNN.
+
+    Args:
+        class_logits (Tensor)
+        box_regression (Tensor)
+        labels (list[BoxList])
+        regression_targets (Tensor)
+
+    Returns:
+        classification_loss (Tensor)
+        box_loss (Tensor)
+    """
+
+    labels = torch.cat(labels, dim=0)
+    regression_targets = torch.cat(regression_targets, dim=0)
+
+    # 平衡正负样本
+    fg_inds = torch.where(labels > 0)[0]
+    bg_inds = torch.where(labels == 0)[0]
+
+    # 另一种损失, 但因为背景偏多, 可能需要focal修正
+    pred = 2 * torch.sigmoid(class_logits[:, 1:])  # (n, 5) value: (0 ~ 1)
+    mask = torch.zeros_like(pred)  # (n, 5) value: 0, 1
+    mask[fg_inds, labels[fg_inds] - 1] = 1.
+
+    fg_loss = F.binary_cross_entropy(pred[fg_inds], mask[fg_inds])
+    bg_loss = F.binary_cross_entropy(pred[bg_inds], mask[fg_inds])
+
+    classification_loss = (fg_loss + bg_loss) / 2
+    tqdm.write('实际背景数/前景数:\t{:>6}/{:<6}, 分类损失: {:.4}, focal_loss'.format(bg_inds.shape[0],
+                                                                         fg_inds.shape[0],
+                                                                         classification_loss))
+
+    # 原来的cls_loss
+    # classification_loss = F.cross_entropy(class_logits, labels)
 
     # get indices that correspond to the regression targets for
     # the corresponding ground truth labels, to be used with
@@ -229,3 +364,9 @@ def modified_fastrcnn_loss(class_logits, box_regression, labels, regression_targ
     box_loss = box_loss / labels.numel()
 
     return classification_loss, box_loss
+
+
+
+
+
+

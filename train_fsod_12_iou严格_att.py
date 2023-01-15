@@ -10,9 +10,9 @@ from utils.dataset import *
 from utils.trainer_without_loss_weight import trainer
 
 torch.set_printoptions(sci_mode=False)
-root = '../FRNOD/datasets/voc/VOCdevkit/VOC2012'
-json_path = 'cocoformatJson/voc_2012_train.json'
-img_path = 'JPEGImages'
+root = '../FRNOD/datasets/fsod'
+json_path = 'annotations/fsod_train.json'
+img_path = 'images'
 loss_weights0 = {'loss_classifier': 1, 'loss_box_reg': 1,
                  'loss_objectness': 1, 'loss_rpn_box_reg': 1,
                  'loss_attention': 1, 'loss_aux': 1}
@@ -25,14 +25,14 @@ loss_weights无监督attention = {'loss_classifier': 1, 'loss_box_reg': 1,
 
 
 def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, split_cats):
-    save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_voc_r50_{}way_{}shot_lr{}' \
+    save_root = '/data/chenzh/FRDet/not_flatten_model_{}/result_fsod_r50_{}way_{}shot_lr{}' \
         .format(loss_weights_index, way, shot, lr)
     model = FRDet(
         # box_predictor params
         way, shot, roi_size=5, num_classes=way + 1,
         # backbone
         backbone_name='resnet50', pretrained=True,
-        returned_layers=None, trainable_layers=3,
+        returned_layers=None, trainable_layers=4,
         # transform parameters
         min_size=600, max_size=1000,
         image_mean=None, image_std=None,
@@ -43,14 +43,15 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         rpn_post_nms_top_n_train=1000, rpn_post_nms_top_n_test=1000,
         rpn_nms_thresh=0.7,
         rpn_fg_iou_thresh=0.7, rpn_bg_iou_thresh=0.3,
-        rpn_batch_size_per_image=256, rpn_positive_fraction=0.5,
-        rpn_score_thresh=0.0,
+        rpn_batch_size_per_image=1000, rpn_positive_fraction=0.5,
+        rpn_score_thresh=0.5,
         # Box parameters
         box_roi_pool=None, box_head=None, box_predictor=None,
         box_score_thresh=0.05, box_nms_thresh=0.7, box_detections_per_img=100,
         box_fg_iou_thresh=0.5, box_bg_iou_thresh=0.5,
         box_batch_size_per_image=512, box_positive_fraction=0.25,
-        bbox_reg_weights=(10., 10., 5., 5.)
+        bbox_reg_weights=(10., 10., 5., 5.),
+        rpn_focal=True
     )
 
     trainer(
@@ -66,7 +67,7 @@ def way_shot_train(way, shot, lr, loss_weights, gpu_index, loss_weights_index, s
         # 模型
         model=model,
         # 训练轮数
-        max_epoch=100,
+        max_epoch=25,
         # 继续训练参数
         continue_epoch=None, continue_iteration=None, continue_weight=None,
         # 保存相关的参数
@@ -88,7 +89,7 @@ def train0():
 if __name__ == '__main__':
     # train0()
     # way_shot_train(2, 5, 2e-01, loss_weights0, 0, 0)
-    random.seed(4096)
+    random.seed(1024)
     # 20221208 上午
     # way_shot_train(2, 5, 2e-03, loss_weights0, 0, '20221208')
     # 20221208 下午四点半
@@ -102,5 +103,6 @@ if __name__ == '__main__':
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc2', base_ids_voc2)
     # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_参数压缩_voc3', base_ids_voc3)
     # 20221217 晚上
-    # way_shot_train(5, 5, 2e-03, loss_weights0, 0, '20230110_fpn_iou严格', base_ids_voc1)
-    way_shot_train(5, 5, 2e-03, loss_weights0, 1, '20230110_fpn_loss修改', base_ids_voc1)
+    # way_shot_train(2, 5, 2e-03, loss_weights0, 1, '20221217_有监督_5x5_FR前景注意力_fsod', None)
+    # 20221227
+    way_shot_train(5, 5, 2e-03, loss_weights0, 1, '20230114_iou严格_rpn_focal', None)
